@@ -1,0 +1,26 @@
+{
+    "visual": {
+        "name": "linearGauge",
+        "displayName": "Linear Gauge",
+        "guid": "linearGauge16D5E17790E94862BEA55E4F2EE66BFE",
+        "visualClassName": "Visual",
+        "version": "1.0.0.0",
+        "description": "A comprehensive linear gauge visualization with color zones, target markers, and comparison indicators. Supports both horizontal and vertical orientations.",
+        "supportUrl": "https://github.com/LukeNewhart/linear-gauge",
+        "gitHubUrl": ""
+    },
+    "apiVersion": "5.3.0",
+    "author": {
+        "name": "Luke Newhart",
+        "email": "Luke.Newhart@gvboces.org"
+    },
+    "assets": {
+        "icon": "assets/icon.png"
+    },
+    "externalJS": null,
+    "style": "style/visual.less",
+    "capabilities": "capabilities.json",
+    "dependencies": null,
+    "stringResources": [],
+    "version": "1.0.0.0"
+}

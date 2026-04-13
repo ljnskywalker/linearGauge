@@ -1,0 +1,69 @@
+// Linear Gauge Custom Visual Styles
+
+.linearGauge {
+    display: block;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    
+    .container {
+        .color-zones {
+            rect {
+                transition: all 0.3s ease;
+            }
+        }
+        
+        .fill-bar {
+            transition: width 0.8s ease, height 0.8s ease;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+        
+        .border {
+            rx: 0;
+            ry: 0;
+        }
+        
+        .target-marker {
+            line {
+                opacity: 0.8;
+            }
+            
+            polygon {
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+            }
+        }
+        
+        .labels {
+            text {
+                font-family: "Segoe UI", wf_segoe-ui_normal, helvetica, arial, sans-serif;
+                user-select: none;
+            }
+        }
+        
+        .comparison {
+            text {
+                font-family: "Segoe UI", wf_segoe-ui_normal, helvetica, arial, sans-serif;
+                user-select: none;
+            }
+        }
+    }
+}
+
+// Accessibility improvements
+.linearGauge:focus {
+    outline: 2px solid #0078d4;
+    outline-offset: 2px;
+}
+
+// High contrast mode support
+@media (prefers-contrast: high) {
+    .linearGauge {
+        .border {
+            stroke-width: 3px;
+        }
+        
+        .fill-bar {
+            opacity: 1 !important;
+        }
+    }
+}

@@ -1,0 +1,44 @@
+.linearGauge {
+  display: block;
+  width: auto;
+  height: auto;
+  overflow: visible;
+}
+.linearGauge .container .color-zones rect {
+  transition: all 0.3s ease;
+}
+.linearGauge .container .fill-bar {
+  transition: width 0.8s ease, height 0.8s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+.linearGauge .container .border {
+  rx: 0;
+  ry: 0;
+}
+.linearGauge .container .target-marker line {
+  opacity: 0.8;
+}
+.linearGauge .container .target-marker polygon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+.linearGauge .container .labels text {
+  font-family: "Segoe UI", wf_segoe-ui_normal, helvetica, arial, sans-serif;
+  user-select: none;
+}
+.linearGauge .container .comparison text {
+  font-family: "Segoe UI", wf_segoe-ui_normal, helvetica, arial, sans-serif;
+  user-select: none;
+}
+.linearGauge:focus {
+  outline: 2px solid #0078d4;
+  outline-offset: 2px;
+}
+@media (prefers-contrast: high) {
+  .linearGauge .border {
+    stroke-width: 3px;
+  }
+  .linearGauge .fill-bar {
+    opacity: 1 !important;
+  }
+}
+

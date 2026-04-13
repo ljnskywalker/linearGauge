@@ -1,0 +1,433 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Category",
+            "name": "category",
+            "kind": "Grouping"
+        },
+        {
+            "displayName": "Value",
+            "name": "value",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Minimum",
+            "name": "minimum",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Maximum",
+            "name": "maximum",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Target",
+            "name": "target",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Threshold 1",
+            "name": "threshold1",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Threshold 2",
+            "name": "threshold2",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Threshold 3",
+            "name": "threshold3",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Threshold 4",
+            "name": "threshold4",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Tooltip Value",
+            "name": "tooltip",
+            "kind": "Measure"
+        }
+    ],
+    "objects": {
+        "gaugeSettings": {
+            "properties": {
+                "orientation": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "horizontal",
+                                "displayName": "Horizontal"
+                            },
+                            {
+                                "value": "vertical",
+                                "displayName": "Vertical"
+                            }
+                        ]
+                    }
+                },
+                "showLabels": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "valueLabelPosition": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "left",
+                                "displayName": "Left"
+                            },
+                            {
+                                "value": "right",
+                                "displayName": "Right"
+                            },
+                            {
+                                "value": "top-center",
+                                "displayName": "Middle Above Gauge"
+                            }
+                        ]
+                    }
+                },
+                "showCategoryLabel": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "valueFormat": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "decimal",
+                                "displayName": "Decimal"
+                            },
+                            {
+                                "value": "percentage",
+                                "displayName": "Percentage"
+                            }
+                        ]
+                    }
+                },
+                "animationDuration": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "layout": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "horizontal",
+                                "displayName": "Horizontal Row"
+                            }
+                        ]
+                    }
+                },
+                "gaugeWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "gaugePadding": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "fillThicknessFactor": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "useStaticValueColor": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "staticValueColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "colorZones": {
+            "properties": {
+                "thresholdMode": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "percentage",
+                                "displayName": "Percentage"
+                            },
+                            {
+                                "value": "absolute",
+                                "displayName": "Absolute Values"
+                            }
+                        ]
+                    }
+                },
+                "threshold1": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "threshold2": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "threshold3": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "threshold4": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "redColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "yellowColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "greenColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "lightBlueColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "showThresholdLabels": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "targetSettings": {
+            "properties": {
+                "showTarget": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "targetColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "showComparison": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "categoryLayout": {
+            "properties": {
+                "categoryFontSize": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "categoryPosition": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "top-left",
+                                "displayName": "Top Left"
+                            },
+                            {
+                                "value": "top-center",
+                                "displayName": "Top Center"
+                            },
+                            {
+                                "value": "top-right",
+                                "displayName": "Top Right"
+                            },
+                            {
+                                "value": "bottom-center",
+                                "displayName": "Bottom Center"
+                            },
+                            {
+                                "value": "bottom-angled-45",
+                                "displayName": "Bottom Angled 45°"
+                            },
+                            {
+                                "value": "left",
+                                "displayName": "Left Side"
+                            }
+                        ]
+                    }
+                },
+                "categoryTextColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "categoryPadding": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "categoryBold": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "value": {
+                        "max": 1
+                    },
+                    "minimum": {
+                        "max": 1
+                    },
+                    "maximum": {
+                        "max": 1
+                    },
+                    "target": {
+                        "max": 1
+                    },
+                    "threshold1": {
+                        "max": 1
+                    },
+                    "threshold2": {
+                        "max": 1
+                    },
+                    "threshold3": {
+                        "max": 1
+                    },
+                    "threshold4": {
+                        "max": 1
+                    },
+                    "tooltip": {
+                        "max": 20
+                    }
+                }
+            ],
+            "categorical": {
+                "categories": {
+                    "for": {
+                        "in": "category"
+                    },
+                    "dataReductionAlgorithm": {
+                        "top": {
+                            "count": 30000
+                        }
+                    }
+                },
+                "values": {
+                    "select": [
+                        {
+                            "bind": {
+                                "to": "value"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "minimum"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "maximum"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "target"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "threshold1"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "threshold2"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "threshold3"
+                            }
+                        },
+                        {
+                            "bind": {
+                                "to": "threshold4"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "tooltip"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "supportsHighlight": true,
+    "supportsMultiVisualSelection": true,
+    "tooltips": {
+        "supportedTypes": {
+            "default": true,
+            "canvas": true
+        },
+        "roles": [
+            "category",
+            "value",
+            "minimum",
+            "maximum",
+            "target",
+            "tooltip"
+        ]
+    },
+    "privileges": []
+}
