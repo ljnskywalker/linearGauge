@@ -3,3 +3,23 @@ dist/linearGauge16D5E17790E94862BEA55E4F2EE66BFE.1.1.0.0.zip
 node_modules/
 .tmp/
 webpack.statistics.prod.html
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and cache
+coverage/
+.nyc_output/
+.eslintcache
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
