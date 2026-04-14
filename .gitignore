@@ -5,6 +5,7 @@ node_modules/
 webpack.statistics.prod.html
 webpack.statistics.dev.html
 package-lock.json
+scripts/
 
 # Logs
 *.log

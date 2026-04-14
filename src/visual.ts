@@ -41,6 +41,8 @@ import ISelectionId = powerbi.visuals.ISelectionId;
 import DataView = powerbi.DataView;
 import DataViewSingle = powerbi.DataViewSingle;
 import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
+import IVisualEventService = powerbi.extensibility.IVisualEventService;
+import IColorPalette = powerbi.extensibility.IColorPalette;
 
 import { VisualFormattingSettingsModel } from "./settings";
 
@@ -56,6 +58,7 @@ interface GaugeData {
     threshold4: number | null;
     customTooltips: VisualTooltipDataItem[];
     selectionId: ISelectionId | null;
+    color: string;
 }
 
 export class Visual implements IVisual {
@@ -68,6 +71,7 @@ export class Visual implements IVisual {
     private formattingSettingsService: FormattingSettingsService;
     private tooltipServiceWrapper: ITooltipServiceWrapper;
     private selectionManager: ISelectionManager;
+    private colorPalette!: IColorPalette;
     private allowInteractions: boolean = true;
     
     constructor(options: VisualConstructorOptions) {
@@ -108,10 +112,24 @@ export class Visual implements IVisual {
                 this.selectionManager.clear();
             }
         });
+
+        // Handle context menu on empty space
+        this.svg.on('contextmenu', (event: PointerEvent) => {
+            if (this.allowInteractions) {
+                this.selectionManager.showContextMenu({}, {
+                    x: event.clientX,
+                    y: event.clientY
+                });
+                event.preventDefault();
+            }
+        });
     }
 
     public update(options: VisualUpdateOptions) {
         try {
+            // Signal rendering start
+            this.host.eventService?.renderingStarted(options);
+
             const updateOptions = options as VisualUpdateOptions & { allowInteractions?: boolean };
             this.allowInteractions = updateOptions.allowInteractions !== false;
 
@@ -120,6 +138,9 @@ export class Visual implements IVisual {
                 VisualFormattingSettingsModel, 
                 options.dataViews?.[0]
             );
+            
+            // Get color palette from host
+            this.colorPalette = this.host.colorPalette;
             
             // Update color zones slices based on threshold mode
             this.formattingSettings.colorZones.populateSlices();
@@ -145,10 +166,15 @@ export class Visual implements IVisual {
             
             // Render the gauges
             this.renderMultipleGauges(gaugeDataArray, width, height);
+
+            // Signal rendering complete
+            this.host.eventService?.renderingFinished(options);
             
         } catch (error) {
             console.error('Error in update:', error);
             this.clear();
+            // Signal rendering complete even on error
+            this.host.eventService?.renderingFinished(options);
         }
     }
 
@@ -245,7 +271,8 @@ export class Visual implements IVisual {
                             threshold3,
                             threshold4,
                             customTooltips,
-                            selectionId
+                            selectionId,
+                            color: this.colorPalette.getColor(category || `gauge_${catIndex}`).value
                         });
                     }
                 }
@@ -324,6 +351,15 @@ export class Visual implements IVisual {
                 gaugeGroup.on('click', (event: MouseEvent) => {
                     event.stopPropagation();
                     this.selectionManager.select(gaugeData.selectionId as ISelectionId, event.ctrlKey);
+                });
+                // Add context menu support for individual gauge
+                gaugeGroup.on('contextmenu', (event: PointerEvent) => {
+                    event.stopPropagation();
+                    this.selectionManager.showContextMenu(gaugeData.selectionId as ISelectionId, {
+                        x: event.clientX,
+                        y: event.clientY
+                    });
+                    event.preventDefault();
                 });
             } else {
                 gaugeGroup.style('cursor', 'default');
@@ -612,6 +648,9 @@ export class Visual implements IVisual {
         // Optional static override for value color
         if (this.formattingSettings.gaugeSettings.useStaticValueColor.value) {
             fillColor = this.formattingSettings.gaugeSettings.staticValueColor.value.value;
+        } else if (data.color) {
+            // Use Power BI color palette if not using static override
+            fillColor = data.color;
         }
         
         const fillBar = this.container.append('rect')
