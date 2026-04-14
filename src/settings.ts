@@ -96,9 +96,7 @@ class GaugeSettingsCard extends FormattingSettingsCard {
     staticValueColor = new formattingSettings.ColorPicker({
         name: "staticValueColor",
         displayName: "Static Value Color",
-        value: { value: "#2f2f2f" },
-        selector: dataViewWildcard.createDataViewWildcardSelector(dataViewWildcard.DataViewWildcardMatchingOption.InstancesAndTotals),
-        instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
+        value: { value: "#2f2f2f" }
     });
 
     name: string = "gaugeSettings";

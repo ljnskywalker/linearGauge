@@ -42,8 +42,9 @@ import ISelectionId = powerbi.visuals.ISelectionId;
 import DataView = powerbi.DataView;
 import DataViewSingle = powerbi.DataViewSingle;
 import VisualTooltipDataItem = powerbi.extensibility.VisualTooltipDataItem;
-import IVisualEventService = powerbi.extensibility.IVisualEventService;
 import IColorPalette = powerbi.extensibility.IColorPalette;
+import EnumerateVisualObjectInstancesOptions = powerbi.EnumerateVisualObjectInstancesOptions;
+import VisualObjectInstance = powerbi.VisualObjectInstance;
 
 import { VisualFormattingSettingsModel } from "./settings";
 
@@ -1441,6 +1442,12 @@ export class Visual implements IVisual {
         return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
     }
     
+    public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): powerbi.VisualObjectInstanceEnumeration {
+        // Format painter relies on this to serialize properties
+        // Since we use FormattingSettingsService, return empty to let Power BI handle default serialization
+        return [];
+    }
+
     public destroy(): void {
         // Cleanup
     }
