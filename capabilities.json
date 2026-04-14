@@ -68,46 +68,9 @@
                         ]
                     }
                 },
-                "showLabels": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "valueLabelPosition": {
-                    "type": {
-                        "enumeration": [
-                            {
-                                "value": "left",
-                                "displayName": "Left"
-                            },
-                            {
-                                "value": "right",
-                                "displayName": "Right"
-                            },
-                            {
-                                "value": "top-center",
-                                "displayName": "Middle Above Gauge"
-                            }
-                        ]
-                    }
-                },
                 "showCategoryLabel": {
                     "type": {
                         "bool": true
-                    }
-                },
-                "valueFormat": {
-                    "type": {
-                        "enumeration": [
-                            {
-                                "value": "decimal",
-                                "displayName": "Decimal"
-                            },
-                            {
-                                "value": "percentage",
-                                "displayName": "Percentage"
-                            }
-                        ]
                     }
                 },
                 "animationDuration": {
@@ -152,6 +115,93 @@
                                 "color": true
                             }
                         }
+                    }
+                }
+            }
+        },
+        "valueFormatting": {
+            "properties": {
+                "showLabels": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "valueLabelPosition": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "left",
+                                "displayName": "Left"
+                            },
+                            {
+                                "value": "right",
+                                "displayName": "Right"
+                            },
+                            {
+                                "value": "top-center",
+                                "displayName": "Middle Above Gauge"
+                            }
+                        ]
+                    }
+                },
+                "valueFormat": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "decimal",
+                                "displayName": "Decimal"
+                            },
+                            {
+                                "value": "percentage",
+                                "displayName": "Percentage"
+                            }
+                        ]
+                    }
+                },
+                "valueDecimalPlaces": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "valuePrefix": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "valueSuffix": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "valueFontSize": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "valueFontFamily": {
+                    "type": {
+                        "formatting": {
+                            "fontFamily": true
+                        }
+                    }
+                },
+                "valueLabelColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "valueBold": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "valueItalic": {
+                    "type": {
+                        "bool": true
                     }
                 }
             }
@@ -229,6 +279,42 @@
                     }
                 },
                 "showThresholdLabels": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "thresholdFontSize": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "thresholdFontFamily": {
+                    "type": {
+                        "formatting": {
+                            "fontFamily": true
+                        }
+                    }
+                },
+                "thresholdDecimalPlaces": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "thresholdLabelColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "thresholdBold": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "thresholdItalic": {
                     "type": {
                         "bool": true
                     }
@@ -429,5 +515,12 @@
             "tooltip"
         ]
     },
+    "supportsLandingPage": true,
+    "supportsKeyboardFocus": true,
+    "sorting": {
+        "default": {}
+    },
     "privileges": []
 }
+
+

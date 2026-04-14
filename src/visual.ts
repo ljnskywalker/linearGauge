@@ -29,6 +29,7 @@
 import powerbi from "powerbi-visuals-api";
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { createTooltipServiceWrapper, ITooltipServiceWrapper, TooltipEventArgs } from "powerbi-visuals-utils-tooltiputils";
+import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
 import * as d3 from "d3";
 import "./../style/visual.less";
 
@@ -73,12 +74,17 @@ export class Visual implements IVisual {
     private selectionManager: ISelectionManager;
     private colorPalette!: IColorPalette;
     private allowInteractions: boolean = true;
+    private isHighContrast: boolean = false;
+    private highContrastColors: any;
+    // Conditional formatting: bound reference to createDataViewWildcardSelector
+    private readonly _createWildcardSelector = dataViewWildcard.createDataViewWildcardSelector.bind(dataViewWildcard);
     
     constructor(options: VisualConstructorOptions) {
         console.log('Visual constructor', options);
         this.host = options.host;
         this.rootElement = options.element as HTMLElement;
-        this.formattingSettingsService = new FormattingSettingsService();
+        const localizationManager = options.host.createLocalizationManager();
+        this.formattingSettingsService = new FormattingSettingsService(localizationManager);
         this.selectionManager = options.host.createSelectionManager();
 
         // Dedicated scrolling wrapper to ensure scrollbars work inside Power BI host
@@ -94,7 +100,10 @@ export class Visual implements IVisual {
         // Create SVG element
         this.svg = d3.select(this.scrollContainer)
             .append('svg')
-            .classed('linearGauge', true);
+            .classed('linearGauge', true)
+            .attr('tabindex', 0)  // Make SVG focusable for keyboard navigation
+            .attr('role', 'img')
+            .attr('aria-label', 'Linear Gauge Visualization');
         
         // Create container group for all gauge elements
         this.container = this.svg.append('g')
@@ -123,6 +132,23 @@ export class Visual implements IVisual {
                 event.preventDefault();
             }
         });
+
+        // Add keyboard navigation support
+        this.svg.on('keydown', (event: KeyboardEvent) => {
+            if (!this.allowInteractions) return;
+            
+            // Handle Enter or Space to toggle selection
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                // Future: navigate between gauge items
+            }
+            
+            // Handle Escape to clear selection
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.selectionManager.clear();
+            }
+        });
     }
 
     public update(options: VisualUpdateOptions) {
@@ -142,27 +168,39 @@ export class Visual implements IVisual {
             // Get color palette from host
             this.colorPalette = this.host.colorPalette;
             
+            // Detect high contrast mode
+            const palette = this.colorPalette as any;
+            this.isHighContrast = !!palette.isHighContrast;
+            if (this.isHighContrast) {
+                this.highContrastColors = {
+                    foreground: palette.foreground?.value || "#000000",
+                    background: palette.background?.value || "#ffffff",
+                    foregroundSelected: palette.foregroundSelected?.value || palette.foreground?.value || "#000000",
+                    hyperlink: palette.hyperlink?.value || palette.foreground?.value || "#000000"
+                };
+            }
+            
             // Update color zones slices based on threshold mode
             this.formattingSettings.colorZones.populateSlices();
-
-            console.log('Visual update', options);
+            
+            // Get viewport dimensions
+            const width = options.viewport.width;
+            const height = options.viewport.height;
             
             // Extract data from dataViews
             const dataView = options.dataViews?.[0];
             if (!dataView) {
-                this.clear();
+                this.renderLandingPage(width, height);
+                this.host.eventService?.renderingFinished(options);
                 return;
             }
 
             const gaugeDataArray = this.extractData(dataView);
             if (gaugeDataArray === null || gaugeDataArray.length === 0) {
-                this.clear();
+                this.renderLandingPage(width, height);
+                this.host.eventService?.renderingFinished(options);
                 return;
             }
-
-            // Get viewport dimensions
-            const width = options.viewport.width;
-            const height = options.viewport.height;
             
             // Render the gauges
             this.renderMultipleGauges(gaugeDataArray, width, height);
@@ -464,8 +502,8 @@ export class Visual implements IVisual {
         }
         
         // Render labels if enabled
-        if (settings.gaugeSettings.showLabels.value) {
-            const formatType = settings.gaugeSettings.valueFormat.value.value as string;
+        if (settings.valueFormatting.showLabels.value) {
+            const formatType = settings.valueFormatting.valueFormat.value.value as string;
             this.renderLabels(data, scale, gaugeWidth, gaugeHeight, isVertical, margin, formatType);
         }
         
@@ -545,32 +583,87 @@ export class Visual implements IVisual {
         
         // Render threshold labels if enabled
         if (settings.showThresholdLabels.value) {
-            const formatType = this.formattingSettings.gaugeSettings.valueFormat.value.value as string;
-            const format = formatType === 'percentage' ? d3.format('.0%') : d3.format(',.0f');
-            const getDisplayValue = (value: number) => formatType === 'percentage' ? value / 100 : value;
             const categoryPosition = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
             const thresholdOnRight = isVertical && categoryPosition === 'left';
+            const thresholdFontSize = settings.thresholdFontSize.value;
+            const thresholdFontFamily = settings.thresholdFontFamily.value;
+            const thresholdLabelColor = settings.thresholdLabelColor.value.value;
+            const thresholdBold = settings.thresholdBold.value;
+            const thresholdItalic = settings.thresholdItalic.value;
             
             // Show all 4 threshold boundaries
             const thresholds = [
-                { value: threshold1, label: format(getDisplayValue(threshold1)) },
-                { value: threshold2, label: format(getDisplayValue(threshold2)) },
-                { value: threshold3, label: format(getDisplayValue(threshold3)) },
-                { value: threshold4, label: format(getDisplayValue(threshold4)) }
+                { value: threshold1, label: this.formatThresholdValue(threshold1), position: 0 },
+                { value: threshold2, label: this.formatThresholdValue(threshold2), position: 0 },
+                { value: threshold3, label: this.formatThresholdValue(threshold3), position: 0 },
+                { value: threshold4, label: this.formatThresholdValue(threshold4), position: 0 }
             ];
+            
+            // Calculate positions and detect overlaps
+            thresholds.forEach(threshold => {
+                threshold.position = scale(threshold.value);
+            });
+            
+            // Minimum spacing between labels (in pixels)
+            const minSpacing = thresholdFontSize * 1.5;
+            const adjustedPositions: number[] = [];
+            
+            // For vertical orientation, check Y positions
+            if (isVertical) {
+                for (let i = 0; i < thresholds.length; i++) {
+                    let pos = thresholds[i].position;
+                    
+                    // Check against previous labels
+                    for (let j = 0; j < i; j++) {
+                        const prevPos = adjustedPositions[j];
+                        const distance = Math.abs((height - pos) - (height - prevPos));
+                        
+                        if (distance < minSpacing) {
+                            // Offset this label to avoid overlap
+                            if ((height - pos) < (height - prevPos)) {
+                                pos = prevPos - (minSpacing / scale(data.maximum));
+                            } else {
+                                pos = prevPos + (minSpacing / scale(data.maximum));
+                            }
+                        }
+                    }
+                    adjustedPositions.push(pos);
+                }
+            } else {
+                // For horizontal orientation
+                for (let i = 0; i < thresholds.length; i++) {
+                    let pos = thresholds[i].position;
+                    
+                    // Check against previous labels
+                    for (let j = 0; j < i; j++) {
+                        const prevPos = adjustedPositions[j];
+                        const distance = Math.abs(pos - prevPos);
+                        
+                        if (distance < minSpacing) {
+                            // Offset this label to avoid overlap
+                            if (pos < prevPos) {
+                                pos = prevPos - minSpacing;
+                            } else {
+                                pos = prevPos + minSpacing;
+                            }
+                        }
+                    }
+                    adjustedPositions.push(pos);
+                }
+            }
             
             const thresholdLabelsGroup = this.container.append('g').classed('threshold-labels', true);
             
-            thresholds.forEach(threshold => {
-                const pos = scale(threshold.value);
+            thresholds.forEach((threshold, index) => {
+                const pos = adjustedPositions[index];
                 
                 if (isVertical) {
                     thresholdLabelsGroup.append('line')
                         .attr('x1', thresholdOnRight ? width : 0)
                         .attr('x2', thresholdOnRight ? width + 6 : -6)
-                        .attr('y1', height - pos)
-                        .attr('y2', height - pos)
-                        .attr('stroke', '#777')
+                        .attr('y1', height - threshold.position)
+                        .attr('y2', height - threshold.position)
+                        .attr('stroke', this.getColor('#777'))
                         .attr('stroke-width', 1);
 
                     // Vertical: labels on opposite side when left category labels are used
@@ -578,17 +671,20 @@ export class Visual implements IVisual {
                         .attr('x', thresholdOnRight ? width + 8 : -8)
                         .attr('y', height - pos + 4)
                         .attr('text-anchor', thresholdOnRight ? 'start' : 'end')
-                        .attr('font-size', '10px')
-                        .attr('fill', '#999')
+                        .attr('font-size', `${thresholdFontSize}px`)
+                        .attr('font-family', thresholdFontFamily)
+                        .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                        .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                        .attr('fill', thresholdLabelColor)
                         .attr('opacity', 0.8)
                         .text(threshold.label);
                 } else {
                     thresholdLabelsGroup.append('line')
-                        .attr('x1', pos)
-                        .attr('x2', pos)
+                        .attr('x1', threshold.position)
+                        .attr('x2', threshold.position)
                         .attr('y1', 0)
                         .attr('y2', -6)
-                        .attr('stroke', '#777')
+                        .attr('stroke', this.getColor('#777'))
                         .attr('stroke-width', 1);
 
                     // Horizontal: labels above at threshold positions
@@ -596,8 +692,11 @@ export class Visual implements IVisual {
                         .attr('x', pos)
                         .attr('y', -8)
                         .attr('text-anchor', 'middle')
-                        .attr('font-size', '10px')
-                        .attr('fill', '#999')
+                        .attr('font-size', `${thresholdFontSize}px`)
+                        .attr('font-family', thresholdFontFamily)
+                        .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                        .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                        .attr('fill', thresholdLabelColor)
                         .attr('opacity', 0.8)
                         .text(threshold.label);
                 }
@@ -648,52 +747,57 @@ export class Visual implements IVisual {
         // Optional static override for value color
         if (this.formattingSettings.gaugeSettings.useStaticValueColor.value) {
             fillColor = this.formattingSettings.gaugeSettings.staticValueColor.value.value;
-        } else if (data.color) {
-            // Use Power BI color palette if not using static override
-            fillColor = data.color;
         }
+        // else: use the threshold-based color determined above
         
-        const fillBar = this.container.append('rect')
-            .classed('fill-bar', true);
-        
-        // Add tooltip to fill bar
+        // Tooltip data shared by both branches
         const tooltipData = this.getTooltipData(data);
-        if (tooltipData.length > 0) {
-            this.tooltipServiceWrapper.addTooltip(
-                fillBar,
-                (tooltipEvent: TooltipEventArgs<any>) => tooltipData
-            );
-        }
-        
+
         if (isVertical) {
             const barWidth = width * fillThicknessFactor;
             const barX = (width - barWidth) / 2;
 
-            // For vertical: fill from bottom to top
-            fillBar
+            // Wrap the rect in a group so we can scale it from the bottom anchor point.
+            // transform: translate(0,h) scale(1,scaleY) translate(0,-h) pivots around y=h,
+            // keeping the bottom edge fixed while the top edge grows upward from 0 to fillSize.
+            const fillGroup = this.container.append('g')
+                .attr('transform', `translate(0,${height}) scale(1,0) translate(0,${-height})`);
+
+            const fillBar = fillGroup.append('rect')
+                .classed('fill-bar', true)
                 .attr('x', barX)
-                .attr('y', height)
+                .attr('y', height - fillSize)
                 .attr('width', barWidth)
-                .attr('height', 0)
+                .attr('height', fillSize)
                 .attr('rx', 0)
                 .attr('ry', 0)
                 .attr('fill', fillColor)
-                .attr('stroke', '#333')
+                .attr('stroke', this.getColor('#333'))
                 .attr('stroke-width', 1)
                 .attr('opacity', 0.75);
-            
-            // Animate the fill bar upward
-            fillBar.transition()
+
+            if (tooltipData.length > 0) {
+                this.tooltipServiceWrapper.addTooltip(
+                    fillBar,
+                    (tooltipEvent: TooltipEventArgs<any>) => tooltipData
+                );
+            }
+
+            // Animate scaleY from 0→1 so the bar grows from the bottom up to the value
+            fillGroup.transition()
                 .duration(animationDuration)
                 .ease(d3.easeQuadInOut)
-                .attr('y', height - fillSize)
-                .attr('height', fillSize);
+                .attrTween('transform', () => {
+                    const sc = d3.interpolateNumber(0, 1);
+                    return (t: number) => `translate(0,${height}) scale(1,${sc(t)}) translate(0,${-height})`;
+                });
         } else {
             const barHeight = height * fillThicknessFactor;
             const barY = (height - barHeight) / 2;
 
             // For horizontal: fill from left to right
-            fillBar
+            const fillBar = this.container.append('rect')
+                .classed('fill-bar', true)
                 .attr('x', 0)
                 .attr('y', barY)
                 .attr('width', 0)
@@ -701,10 +805,17 @@ export class Visual implements IVisual {
                 .attr('rx', 0)
                 .attr('ry', 0)
                 .attr('fill', fillColor)
-                .attr('stroke', '#333')
+                .attr('stroke', this.getColor('#333'))
                 .attr('stroke-width', 1)
                 .attr('opacity', 0.75);
-            
+
+            if (tooltipData.length > 0) {
+                this.tooltipServiceWrapper.addTooltip(
+                    fillBar,
+                    (tooltipEvent: TooltipEventArgs<any>) => tooltipData
+                );
+            }
+
             // Animate the fill bar rightward
             fillBar.transition()
                 .duration(animationDuration)
@@ -721,7 +832,7 @@ export class Visual implements IVisual {
             .attr('width', width)
             .attr('height', height)
             .attr('fill', 'none')
-            .attr('stroke', '#666')
+            .attr('stroke', this.getColor('#666'))
             .attr('stroke-width', 2);
     }
 
@@ -736,7 +847,7 @@ export class Visual implements IVisual {
         const markerGroup = this.container.append('g').classed('target-marker', true);
         
         // Add tooltip to target marker
-        const formatType = this.formattingSettings.gaugeSettings.valueFormat.value.value as string;
+        const formatType = this.formattingSettings.valueFormatting.valueFormat.value.value as string;
         const format = formatType === 'percentage' ? d3.format('.0%') : d3.format(',.0f');
         const getDisplayValue = (value: number) => formatType === 'percentage' ? value / 100 : value;
         
@@ -784,20 +895,17 @@ export class Visual implements IVisual {
     private renderLabels(data: GaugeData, scale: d3.ScaleLinear<number, number>, 
                         width: number, height: number, isVertical: boolean, margin: any, formatType: string) {
         const labelsGroup = this.container.append('g').classed('labels', true);
-        const valueLabelPosition = this.formattingSettings.gaugeSettings.valueLabelPosition.value.value as string;
+        const valueLabelPosition = this.formattingSettings.valueFormatting.valueLabelPosition.value.value as string;
+        const valueFontSize = this.formattingSettings.valueFormatting.valueFontSize.value;
+        const valueFontFamily = this.formattingSettings.valueFormatting.valueFontFamily.value;
+        const valueLabelColor = this.formattingSettings.valueFormatting.valueLabelColor.value.value;
+        const valueBold = this.formattingSettings.valueFormatting.valueBold.value;
+        const valueItalic = this.formattingSettings.valueFormatting.valueItalic.value;
         
-        // Format numbers based on selected format type
-        const format = formatType === 'percentage' ? d3.format('.0%') : d3.format(',.0f');
+        const thresholdLabelColor = this.formattingSettings.colorZones.thresholdLabelColor.value.value;
+        const thresholdBold = this.formattingSettings.colorZones.thresholdBold.value;
+        const thresholdItalic = this.formattingSettings.colorZones.thresholdItalic.value;
         
-        // Calculate display values for percentage format
-        const getDisplayValue = (value: number) => {
-            if (formatType === 'percentage') {
-                // For percentage, divide by 100 because d3.format('%') multiplies by 100
-                return value / 100;
-            }
-            return value;
-        };
-
         const fillThicknessPercent = this.formattingSettings.gaugeSettings.fillThicknessFactor.value;
         const fillThicknessFactor = Math.max(5, Math.min(100, fillThicknessPercent)) / 100;
         
@@ -824,16 +932,17 @@ export class Visual implements IVisual {
                 .attr('x2', -6)
                 .attr('y1', height)
                 .attr('y2', height)
-                .attr('stroke', '#666')
+                .attr('stroke', this.getColor('#666'))
                 .attr('stroke-width', 1);
 
             labelsGroup.append('text')
                 .attr('x', -8)
                 .attr('y', height + 4)
                 .attr('text-anchor', 'end')
-                .attr('font-size', '12px')
-                .attr('fill', '#666')
-                .text(format(getDisplayValue(data.minimum)));
+                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
+                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                .attr('fill', this.getColor('#666'))
+                .text(this.formatThresholdValue(data.minimum));
             
             // Max tick and label on left side
             labelsGroup.append('line')
@@ -841,16 +950,17 @@ export class Visual implements IVisual {
                 .attr('x2', -6)
                 .attr('y1', 0)
                 .attr('y2', 0)
-                .attr('stroke', '#666')
+                .attr('stroke', this.getColor('#666'))
                 .attr('stroke-width', 1);
 
             labelsGroup.append('text')
                 .attr('x', -8)
                 .attr('y', 4)
                 .attr('text-anchor', 'end')
-                .attr('font-size', '12px')
-                .attr('fill', '#666')
-                .text(format(getDisplayValue(data.maximum)));
+                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
+                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                .attr('fill', this.getColor('#666'))
+                .text(this.formatThresholdValue(data.maximum));
             
             // Current value label (side)
             const valueY = height - scale(data.value);
@@ -860,17 +970,19 @@ export class Visual implements IVisual {
                     .attr('x2', -8)
                     .attr('y1', valueY)
                     .attr('y2', valueY)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
-                    .attr('x', -12)
+                    .attr('x', -10)
                     .attr('y', valueY + 5)
                     .attr('text-anchor', 'end')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             } else if (valueLabelPosition === 'top-center') {
                 const valueTopY = valueY;
                 labelsGroup.append('line')
@@ -878,34 +990,38 @@ export class Visual implements IVisual {
                     .attr('x2', width / 2)
                     .attr('y1', valueTopY)
                     .attr('y2', valueTopY - 6)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
                     .attr('x', width / 2)
-                    .attr('y', valueTopY - 10)
+                    .attr('y', valueTopY - 8)
                     .attr('text-anchor', 'middle')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             } else {
                 labelsGroup.append('line')
                     .attr('x1', width)
                     .attr('x2', width + 8)
                     .attr('y1', valueY)
                     .attr('y2', valueY)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
-                    .attr('x', width + 15)
+                    .attr('x', width + 10)
                     .attr('y', valueY + 5)
                     .attr('text-anchor', 'start')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             }
         } else {
             // Min tick and label on left side
@@ -914,16 +1030,19 @@ export class Visual implements IVisual {
                 .attr('x2', -6)
                 .attr('y1', height)
                 .attr('y2', height)
-                .attr('stroke', '#666')
+                .attr('stroke', this.getColor('#666'))
                 .attr('stroke-width', 1);
 
             labelsGroup.append('text')
                 .attr('x', -8)
                 .attr('y', height + 4)
                 .attr('text-anchor', 'end')
-                .attr('font-size', '12px')
-                .attr('fill', '#666')
-                .text(format(getDisplayValue(data.minimum)));
+                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
+                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                .attr('fill', thresholdLabelColor)
+                .text(this.formatThresholdValue(data.minimum));
             
             // Max tick and label on left side
             labelsGroup.append('line')
@@ -931,16 +1050,19 @@ export class Visual implements IVisual {
                 .attr('x2', -6)
                 .attr('y1', 0)
                 .attr('y2', 0)
-                .attr('stroke', '#666')
+                .attr('stroke', this.getColor('#666'))
                 .attr('stroke-width', 1);
 
             labelsGroup.append('text')
                 .attr('x', -8)
                 .attr('y', 4)
                 .attr('text-anchor', 'end')
-                .attr('font-size', '12px')
-                .attr('fill', '#666')
-                .text(format(getDisplayValue(data.maximum)));
+                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
+                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                .attr('fill', thresholdLabelColor)
+                .text(this.formatThresholdValue(data.maximum));
             
             // Current value label with configurable placement
             const valueX = scale(data.value);
@@ -951,34 +1073,38 @@ export class Visual implements IVisual {
                     .attr('x2', -8)
                     .attr('y1', height / 2)
                     .attr('y2', height / 2)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
-                    .attr('x', -12)
+                    .attr('x', -10)
                     .attr('y', height / 2 + 5)
                     .attr('text-anchor', 'end')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             } else if (valueLabelPosition === 'right') {
                 labelsGroup.append('line')
                     .attr('x1', width)
                     .attr('x2', width + 8)
                     .attr('y1', height / 2)
                     .attr('y2', height / 2)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
-                    .attr('x', width + 12)
+                    .attr('x', width + 10)
                     .attr('y', height / 2 + 5)
                     .attr('text-anchor', 'start')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             } else {
                 const barHeight = height * fillThicknessFactor;
                 const barTopY = (height - barHeight) / 2;
@@ -988,17 +1114,19 @@ export class Visual implements IVisual {
                     .attr('x2', valueX)
                     .attr('y1', barTopY)
                     .attr('y2', barTopY - 6)
-                    .attr('stroke', '#333')
+                    .attr('stroke', this.getColor('#333'))
                     .attr('stroke-width', 1);
 
                 labelsGroup.append('text')
                     .attr('x', valueX)
-                    .attr('y', barTopY - 10)
+                    .attr('y', barTopY - 8)
                     .attr('text-anchor', 'middle')
-                    .attr('font-size', '14px')
-                    .attr('font-weight', 'bold')
-                    .attr('fill', '#000')
-                    .text(format(getDisplayValue(data.value)));
+                    .attr('font-size', `${valueFontSize}px`)
+                    .attr('font-family', valueFontFamily)
+                    .attr('font-weight', valueBold ? 'bold' : 'normal')
+                    .attr('font-style', valueItalic ? 'italic' : 'normal')
+                    .attr('fill', valueLabelColor)
+                    .text(this.formatValue(data.value));
             }
         }
     }
@@ -1165,6 +1293,139 @@ export class Visual implements IVisual {
 
     private clear() {
         this.container.selectAll('*').remove();
+    }
+
+    private renderLandingPage(width: number, height: number) {
+        this.clear();
+        
+        // Set SVG dimensions properly
+        this.svg
+            .attr('width', Math.max(1, width))
+            .attr('height', Math.max(1, height));
+        
+        const landingPageGroup = this.container.append('g')
+            .classed('landing-page', true);
+        
+        // Center the content
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        // Draw sample gauge visualization
+        const gaugeWidth = Math.min(200, width * 0.6);
+        const gaugeHeight = Math.min(150, height * 0.4);
+        const gaugeX = centerX - gaugeWidth / 2;
+        const gaugeY = centerY - gaugeHeight / 2 - 40;
+        
+        // Background bar
+        landingPageGroup.append('rect')
+            .attr('x', gaugeX)
+            .attr('y', gaugeY + gaugeHeight * 0.3)
+            .attr('width', gaugeWidth)
+            .attr('height', gaugeHeight * 0.4)
+            .attr('fill', '#e0e0e0')
+            .attr('rx', 4)
+            .attr('opacity', 0.5);
+        
+        // Value fill bar
+        landingPageGroup.append('rect')
+            .attr('x', gaugeX)
+            .attr('y', gaugeY + gaugeHeight * 0.35)
+            .attr('width', gaugeWidth * 0.7)
+            .attr('height', gaugeHeight * 0.3)
+            .attr('fill', '#4caf50')
+            .attr('rx', 3)
+            .attr('opacity', 0.7);
+        
+        // Target marker
+        const targetX = gaugeX + gaugeWidth * 0.85;
+        landingPageGroup.append('line')
+            .attr('x1', targetX)
+            .attr('x2', targetX)
+            .attr('y1', gaugeY + gaugeHeight * 0.25)
+            .attr('y2', gaugeY + gaugeHeight * 0.75)
+            .attr('stroke', '#000')
+            .attr('stroke-width', 2)
+            .attr('stroke-dasharray', '4,4')
+            .attr('opacity', 0.6);
+        
+        // Welcome text
+        landingPageGroup.append('text')
+            .attr('x', centerX)
+            .attr('y', gaugeY + gaugeHeight + 50)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '18px')
+            .attr('font-weight', 'bold')
+            .attr('fill', this.getColor('#333'))
+            .text('Linear Gauge Visual');
+        
+        // Instruction text
+        landingPageGroup.append('text')
+            .attr('x', centerX)
+            .attr('y', gaugeY + gaugeHeight + 80)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '14px')
+            .attr('fill', this.getColor('#666'))
+            .text('Add data to get started');
+        
+        // Set scroll container to hidden since landing page fits in viewport
+        this.scrollContainer.style.overflowX = 'hidden';
+        this.scrollContainer.style.overflowY = 'hidden';
+    }
+
+    /**
+     * Get appropriate color for high contrast mode
+     */
+    private getColor(normalColor: string, colorType: 'foreground' | 'background' | 'selected' = 'foreground'): string {
+        if (this.isHighContrast) {
+            switch (colorType) {
+                case 'foreground':
+                    return this.highContrastColors.foreground;
+                case 'background':
+                    return this.highContrastColors.background;
+                case 'selected':
+                    return this.highContrastColors.foregroundSelected;
+                default:
+                    return this.highContrastColors.foreground;
+            }
+        }
+        return normalColor;
+    }
+
+    /**
+     * Get stroke width appropriate for high contrast mode
+     */
+    private getStrokeWidth(normalWidth: number): number {
+        return this.isHighContrast ? Math.max(normalWidth, 2) : normalWidth;
+    }
+
+    private formatValue(value: number): string {
+        const formatType = this.formattingSettings.valueFormatting.valueFormat.value.value as string;
+        const decimalPlaces = this.formattingSettings.valueFormatting.valueDecimalPlaces.value;
+        const prefix = this.formattingSettings.valueFormatting.valuePrefix?.value ?? "";
+        const suffix = this.formattingSettings.valueFormatting.valueSuffix?.value ?? "";
+        
+        let formattedValue: string;
+        
+        if (formatType === 'percentage') {
+            // For percentage, divide by 100 and format with decimal places
+            const percentValue = value / 100;
+            const formatString = `.${decimalPlaces}%`;
+            formattedValue = d3.format(formatString)(percentValue);
+        } else {
+            // For decimal, use thousands separator and decimal places
+            const formatString = decimalPlaces > 0 ? `,.${decimalPlaces}f` : ',.0f';
+            formattedValue = d3.format(formatString)(value);
+        }
+        
+        return prefix + formattedValue + suffix;
+    }
+
+    private formatThresholdValue(value: number): string {
+        // Threshold values use their own decimal places setting, no prefix/suffix
+        const decimalPlaces = this.formattingSettings?.colorZones?.thresholdDecimalPlaces?.value;
+        const places = (decimalPlaces !== undefined && decimalPlaces !== null) ? decimalPlaces : 0;
+        const formatString = `,.${places}f`;
+        return d3.format(formatString)(value);
     }
 
     private getTooltipData(data: GaugeData): VisualTooltipDataItem[] {

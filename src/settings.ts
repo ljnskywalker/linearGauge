@@ -27,6 +27,8 @@
 "use strict";
 
 import { formattingSettings } from "powerbi-visuals-utils-formattingmodel";
+import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
+import powerbi from "powerbi-visuals-api";
 
 import FormattingSettingsCard = formattingSettings.SimpleCard;
 import FormattingSettingsSlice = formattingSettings.Slice;
@@ -46,37 +48,10 @@ class GaugeSettingsCard extends FormattingSettingsCard {
         value: { value: "vertical", displayName: "Vertical" }
     });
 
-    showLabels = new formattingSettings.ToggleSwitch({
-        name: "showLabels",
-        displayName: "Show Labels",
-        value: true
-    });
-
-    valueLabelPosition = new formattingSettings.ItemDropdown({
-        name: "valueLabelPosition",
-        displayName: "Value Label Position",
-        items: [
-            { value: "left", displayName: "Left" },
-            { value: "right", displayName: "Right" },
-            { value: "top-center", displayName: "Middle Above Gauge" }
-        ],
-        value: { value: "right", displayName: "Right" }
-    });
-
     showCategoryLabel = new formattingSettings.ToggleSwitch({
         name: "showCategoryLabel",
         displayName: "Show Category Label",
         value: true
-    });
-
-    valueFormat = new formattingSettings.ItemDropdown({
-        name: "valueFormat",
-        displayName: "Value Format",
-        items: [
-            { value: "decimal", displayName: "Decimal" },
-            { value: "percentage", displayName: "Percentage" }
-        ],
-        value: { value: "decimal", displayName: "Decimal" }
     });
 
     animationDuration = new formattingSettings.NumUpDown({
@@ -121,17 +96,16 @@ class GaugeSettingsCard extends FormattingSettingsCard {
     staticValueColor = new formattingSettings.ColorPicker({
         name: "staticValueColor",
         displayName: "Static Value Color",
-        value: { value: "#2f2f2f" }
+        value: { value: "#2f2f2f" },
+        selector: dataViewWildcard.createDataViewWildcardSelector(dataViewWildcard.DataViewWildcardMatchingOption.InstancesAndTotals),
+        instanceKind: powerbi.VisualEnumerationInstanceKinds.ConstantOrRule
     });
 
     name: string = "gaugeSettings";
     displayName: string = "Gauge Settings";
     slices: Array<FormattingSettingsSlice> = [
         this.orientation,
-        this.showLabels,
-        this.valueLabelPosition,
         this.showCategoryLabel,
-        this.valueFormat,
         this.animationDuration,
         this.layout,
         this.gaugeWidth,
@@ -153,7 +127,7 @@ class ColorZonesCard extends FormattingSettingsCard {
             { value: "percentage", displayName: "Percentage" },
             { value: "absolute", displayName: "Absolute Values" }
         ],
-        value: { value: "percentage", displayName: "Percentage" }
+        value: { value: "absolute", displayName: "Absolute Values" }
     });
 
     threshold1 = new formattingSettings.NumUpDown({
@@ -210,6 +184,42 @@ class ColorZonesCard extends FormattingSettingsCard {
         value: true
     });
 
+    thresholdFontSize = new formattingSettings.NumUpDown({
+        name: "thresholdFontSize",
+        displayName: "Threshold Font Size",
+        value: 10
+    });
+
+    thresholdFontFamily = new formattingSettings.FontPicker({
+        name: "thresholdFontFamily",
+        displayName: "Threshold Font Family",
+        value: "Segoe UI, sans-serif"
+    });
+
+    thresholdDecimalPlaces = new formattingSettings.NumUpDown({
+        name: "thresholdDecimalPlaces",
+        displayName: "Threshold Decimal Places",
+        value: 0
+    });
+
+    thresholdLabelColor = new formattingSettings.ColorPicker({
+        name: "thresholdLabelColor",
+        displayName: "Threshold Label Color",
+        value: { value: "#666666" }
+    });
+
+    thresholdBold = new formattingSettings.ToggleSwitch({
+        name: "thresholdBold",
+        displayName: "Threshold Label Bold",
+        value: false
+    });
+
+    thresholdItalic = new formattingSettings.ToggleSwitch({
+        name: "thresholdItalic",
+        displayName: "Threshold Label Italic",
+        value: false
+    });
+
     name: string = "colorZones";
     displayName: string = "Color Zones";
     slices: Array<FormattingSettingsSlice> = [
@@ -217,7 +227,14 @@ class ColorZonesCard extends FormattingSettingsCard {
         this.redColor,
         this.yellowColor,
         this.greenColor,
-        this.lightBlueColor
+        this.lightBlueColor,
+        this.showThresholdLabels,
+        this.thresholdFontSize,
+        this.thresholdFontFamily,
+        this.thresholdDecimalPlaces,
+        this.thresholdLabelColor,
+        this.thresholdBold,
+        this.thresholdItalic
     ];
     
     // Populate slices dynamically based on threshold mode
@@ -238,8 +255,14 @@ class ColorZonesCard extends FormattingSettingsCard {
         slices.push(this.greenColor);
         slices.push(this.lightBlueColor);
         
-        // Show threshold labels toggle
+        // Show threshold labels toggle and formatting
         slices.push(this.showThresholdLabels);
+        slices.push(this.thresholdFontSize);
+        slices.push(this.thresholdFontFamily);
+        slices.push(this.thresholdDecimalPlaces);
+        slices.push(this.thresholdLabelColor);
+        slices.push(this.thresholdBold);
+        slices.push(this.thresholdItalic);
         
         this.slices = slices;
     }
@@ -293,7 +316,7 @@ class CategoryLayoutCard extends FormattingSettingsCard {
             { value: "bottom-angled-45", displayName: "Bottom Angled 45°" },
             { value: "left", displayName: "Left Side" }
         ],
-        value: { value: "top-left", displayName: "Top Left" }
+        value: { value: "bottom-center", displayName: "Bottom Center" }
     });
 
     categoryTextColor = new formattingSettings.ColorPicker({
@@ -326,15 +349,114 @@ class CategoryLayoutCard extends FormattingSettingsCard {
 }
 
 /**
+ * Value Formatting Settings Card
+ */
+class ValueFormattingCard extends FormattingSettingsCard {
+    showLabels = new formattingSettings.ToggleSwitch({
+        name: "showLabels",
+        displayName: "Show Labels",
+        value: true
+    });
+
+    valueLabelPosition = new formattingSettings.ItemDropdown({
+        name: "valueLabelPosition",
+        displayName: "Value Label Position",
+        items: [
+            { value: "left", displayName: "Left" },
+            { value: "right", displayName: "Right" },
+            { value: "top-center", displayName: "Middle Above Gauge" }
+        ],
+        value: { value: "right", displayName: "Right" }
+    });
+
+    valueFormat = new formattingSettings.ItemDropdown({
+        name: "valueFormat",
+        displayName: "Value Format",
+        items: [
+            { value: "decimal", displayName: "Decimal" },
+            { value: "percentage", displayName: "Percentage" }
+        ],
+        value: { value: "decimal", displayName: "Decimal" }
+    });
+
+    valueDecimalPlaces = new formattingSettings.NumUpDown({
+        name: "valueDecimalPlaces",
+        displayName: "Decimal Places",
+        value: 0
+    });
+
+    valuePrefix = new formattingSettings.TextInput({
+        name: "valuePrefix",
+        displayName: "Value Prefix",
+        value: "",
+        placeholder: "e.g., $"
+    });
+
+    valueSuffix = new formattingSettings.TextInput({
+        name: "valueSuffix",
+        displayName: "Value Suffix",
+        value: "",
+        placeholder: "e.g., units"
+    });
+
+    valueFontSize = new formattingSettings.NumUpDown({
+        name: "valueFontSize",
+        displayName: "Value Font Size",
+        value: 14
+    });
+
+    valueFontFamily = new formattingSettings.FontPicker({
+        name: "valueFontFamily",
+        displayName: "Value Font Family",
+        value: "Segoe UI, sans-serif"
+    });
+
+    valueLabelColor = new formattingSettings.ColorPicker({
+        name: "valueLabelColor",
+        displayName: "Value Label Color",
+        value: { value: "#333333" }
+    });
+
+    valueBold = new formattingSettings.ToggleSwitch({
+        name: "valueBold",
+        displayName: "Value Label Bold",
+        value: false
+    });
+
+    valueItalic = new formattingSettings.ToggleSwitch({
+        name: "valueItalic",
+        displayName: "Value Label Italic",
+        value: false
+    });
+
+    name: string = "valueFormatting";
+    displayName: string = "Value Label Formatting";
+    slices: Array<FormattingSettingsSlice> = [
+        this.showLabels,
+        this.valueLabelPosition,
+        this.valueFormat,
+        this.valueDecimalPlaces,
+        this.valuePrefix,
+        this.valueSuffix,
+        this.valueFontSize,
+        this.valueFontFamily,
+        this.valueLabelColor,
+        this.valueBold,
+        this.valueItalic
+    ];
+}
+
+/**
 * visual settings model class
 *
 */
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     // Create formatting settings model formatting cards
     gaugeSettings = new GaugeSettingsCard();
+    valueFormatting = new ValueFormattingCard();
     colorZones = new ColorZonesCard();
     targetSettings = new TargetSettingsCard();
     categoryLayout = new CategoryLayoutCard();
 
-    cards = [this.gaugeSettings, this.colorZones, this.targetSettings, this.categoryLayout];
+    cards = [this.gaugeSettings, this.valueFormatting, this.categoryLayout, this.colorZones, this.targetSettings];
 }
