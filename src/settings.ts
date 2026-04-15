@@ -100,18 +100,38 @@ class GaugeSettingsCard extends FormattingSettingsCard {
     });
 
     name: string = "gaugeSettings";
-    displayName: string = "Gauge Settings";
+    displayName: string = "Core Layout";
     slices: Array<FormattingSettingsSlice> = [
         this.orientation,
-        this.showCategoryLabel,
-        this.animationDuration,
         this.layout,
         this.gaugeWidth,
         this.gaugePadding,
         this.fillThicknessFactor,
+        this.showCategoryLabel,
         this.useStaticValueColor,
-        this.staticValueColor
+        this.staticValueColor,
+        this.animationDuration
     ];
+
+    // Keep controls contextual so commonly used layout settings remain easy to scan.
+    populateSlices() {
+        const slices: Array<FormattingSettingsSlice> = [
+            this.orientation,
+            this.layout,
+            this.gaugeWidth,
+            this.gaugePadding,
+            this.fillThicknessFactor,
+            this.showCategoryLabel,
+            this.useStaticValueColor
+        ];
+
+        if (this.useStaticValueColor.value) {
+            slices.push(this.staticValueColor);
+        }
+
+        slices.push(this.animationDuration);
+        this.slices = slices;
+    }
 }
 
 /**
@@ -154,25 +174,25 @@ class ColorZonesCard extends FormattingSettingsCard {
 
     redColor = new formattingSettings.ColorPicker({
         name: "redColor",
-        displayName: "Red Color",
+        displayName: "Threshold 1 Color",
         value: { value: "#d32f2f" }  // Red
     });
 
     yellowColor = new formattingSettings.ColorPicker({
         name: "yellowColor",
-        displayName: "Yellow Color",
+        displayName: "Threshold 2 Color",
         value: { value: "#fdd835" }  // Yellow
     });
 
     greenColor = new formattingSettings.ColorPicker({
         name: "greenColor",
-        displayName: "Green Color",
+        displayName: "Threshold 3 Color",
         value: { value: "#4caf50" }  // Green
     });
 
     lightBlueColor = new formattingSettings.ColorPicker({
         name: "lightBlueColor",
-        displayName: "Light Blue Color",
+        displayName: "Threshold 4 Color",
         value: { value: "#42a5f5" }  // Light Blue
     });
 
@@ -204,6 +224,18 @@ class ColorZonesCard extends FormattingSettingsCard {
         name: "showThreshold4Label",
         displayName: "Show Threshold 4 Label",
         value: true
+    });
+
+    scaleLabelDisplay = new formattingSettings.ItemDropdown({
+        name: "scaleLabelDisplay",
+        displayName: "Scale End Labels",
+        items: [
+            { value: "off", displayName: "Off" },
+            { value: "min", displayName: "Min Only" },
+            { value: "max", displayName: "Max Only" },
+            { value: "both", displayName: "Both" }
+        ],
+        value: { value: "both", displayName: "Both" }
     });
 
     thresholdFontSize = new formattingSettings.NumUpDown({
@@ -260,14 +292,25 @@ class ColorZonesCard extends FormattingSettingsCard {
     });
 
     name: string = "colorZones";
-    displayName: string = "Color Zones";
+    displayName: string = "Scale & Thresholds";
     slices: Array<FormattingSettingsSlice> = [
         this.thresholdMode,
+        this.threshold1,
+        this.threshold2,
+        this.threshold3,
+        this.threshold4,
         this.redColor,
         this.yellowColor,
         this.greenColor,
         this.lightBlueColor,
         this.showThresholdLabels,
+        this.showThreshold1Label,
+        this.showThreshold2Label,
+        this.showThreshold3Label,
+        this.showThreshold4Label,
+        this.scaleLabelDisplay,
+        this.thresholdMaxLabelLength,
+        this.thresholdLineStyle,
         this.thresholdFontSize,
         this.thresholdFontFamily,
         this.thresholdDecimalPlaces,
@@ -276,7 +319,7 @@ class ColorZonesCard extends FormattingSettingsCard {
         this.thresholdItalic
     ];
     
-    // Populate slices dynamically based on threshold mode
+    // Populate slices dynamically based on threshold and label modes.
     populateSlices() {
         const slices: Array<FormattingSettingsSlice> = [this.thresholdMode];
         
@@ -294,20 +337,24 @@ class ColorZonesCard extends FormattingSettingsCard {
         slices.push(this.greenColor);
         slices.push(this.lightBlueColor);
         
-        // Show threshold labels toggle and formatting
+        slices.push(this.scaleLabelDisplay);
+
+        // Show threshold labels toggle and related formatting only when labels are enabled.
         slices.push(this.showThresholdLabels);
-        slices.push(this.showThreshold1Label);
-        slices.push(this.showThreshold2Label);
-        slices.push(this.showThreshold3Label);
-        slices.push(this.showThreshold4Label);
-        slices.push(this.thresholdMaxLabelLength);
-        slices.push(this.thresholdLineStyle);
-        slices.push(this.thresholdFontSize);
-        slices.push(this.thresholdFontFamily);
-        slices.push(this.thresholdDecimalPlaces);
-        slices.push(this.thresholdLabelColor);
-        slices.push(this.thresholdBold);
-        slices.push(this.thresholdItalic);
+        if (this.showThresholdLabels.value) {
+            slices.push(this.showThreshold1Label);
+            slices.push(this.showThreshold2Label);
+            slices.push(this.showThreshold3Label);
+            slices.push(this.showThreshold4Label);
+            slices.push(this.thresholdMaxLabelLength);
+            slices.push(this.thresholdLineStyle);
+            slices.push(this.thresholdFontSize);
+            slices.push(this.thresholdFontFamily);
+            slices.push(this.thresholdDecimalPlaces);
+            slices.push(this.thresholdLabelColor);
+            slices.push(this.thresholdBold);
+            slices.push(this.thresholdItalic);
+        }
         
         this.slices = slices;
     }
@@ -347,28 +394,91 @@ class TargetSettingsCard extends FormattingSettingsCard {
         value: { value: "both", displayName: "Both" }
     });
 
+    comparisonPosition = new formattingSettings.ItemDropdown({
+        name: "comparisonPosition",
+        displayName: "Comparison Position",
+        items: [
+            { value: "top", displayName: "Top" },
+            { value: "left", displayName: "Left" },
+            { value: "right", displayName: "Right" },
+            { value: "bottom", displayName: "Bottom" }
+        ],
+        value: { value: "bottom", displayName: "Bottom" }
+    });
+
     comparisonPositiveColor = new formattingSettings.ColorPicker({
         name: "comparisonPositiveColor",
         displayName: "Positive Comparison Color",
-        value: { value: "#10d61a" }
+        value: { value: "#0b6a0b" }
     });
 
     comparisonNegativeColor = new formattingSettings.ColorPicker({
         name: "comparisonNegativeColor",
         displayName: "Negative Comparison Color",
-        value: { value: "#d6101a" }
+        value: { value: "#a20d18" }
+    });
+
+    comparisonFontSize = new formattingSettings.NumUpDown({
+        name: "comparisonFontSize",
+        displayName: "Comparison Font Size",
+        value: 12
+    });
+
+    comparisonFontFamily = new formattingSettings.FontPicker({
+        name: "comparisonFontFamily",
+        displayName: "Comparison Font Family",
+        value: "Segoe UI, sans-serif"
+    });
+
+    comparisonBold = new formattingSettings.ToggleSwitch({
+        name: "comparisonBold",
+        displayName: "Comparison Bold",
+        value: true
+    });
+
+    comparisonItalic = new formattingSettings.ToggleSwitch({
+        name: "comparisonItalic",
+        displayName: "Comparison Italic",
+        value: false
     });
 
     name: string = "targetSettings";
-    displayName: string = "Target Settings";
+    displayName: string = "Target & Comparison";
     slices: Array<FormattingSettingsSlice> = [
         this.showTarget,
         this.targetColor,
         this.showComparison,
         this.comparisonDisplay,
+        this.comparisonPosition,
         this.comparisonPositiveColor,
-        this.comparisonNegativeColor
+        this.comparisonNegativeColor,
+        this.comparisonFontSize,
+        this.comparisonFontFamily,
+        this.comparisonBold,
+        this.comparisonItalic
     ];
+
+    populateSlices() {
+        const slices: Array<FormattingSettingsSlice> = [this.showTarget];
+
+        if (this.showTarget.value) {
+            slices.push(this.targetColor);
+        }
+
+        slices.push(this.showComparison);
+        if (this.showComparison.value) {
+            slices.push(this.comparisonDisplay);
+            slices.push(this.comparisonPosition);
+            slices.push(this.comparisonPositiveColor);
+            slices.push(this.comparisonNegativeColor);
+            slices.push(this.comparisonFontSize);
+            slices.push(this.comparisonFontFamily);
+            slices.push(this.comparisonBold);
+            slices.push(this.comparisonItalic);
+        }
+
+        this.slices = slices;
+    }
 }
 
 /**
@@ -414,7 +524,7 @@ class CategoryLayoutCard extends FormattingSettingsCard {
     });
 
     name: string = "categoryLayout";
-    displayName: string = "Category & Layout";
+    displayName: string = "Category Labels";
     slices: Array<FormattingSettingsSlice> = [
         this.categoryFontSize,
         this.categoryPosition,
@@ -511,12 +621,12 @@ class ValueFormattingCard extends FormattingSettingsCard {
     });
 
     name: string = "valueFormatting";
-    displayName: string = "Value Label Formatting";
+    displayName: string = "Value Labels";
     slices: Array<FormattingSettingsSlice> = [
         this.showLabels,
-        this.valueLabelPosition,
         this.valueFormat,
         this.valueDecimalPlaces,
+        this.valueLabelPosition,
         this.valuePrefix,
         this.valueSuffix,
         this.valueFontSize,
@@ -525,12 +635,266 @@ class ValueFormattingCard extends FormattingSettingsCard {
         this.valueBold,
         this.valueItalic
     ];
+
+    populateSlices() {
+        const slices: Array<FormattingSettingsSlice> = [
+            this.showLabels,
+            this.valueFormat,
+            this.valueDecimalPlaces
+        ];
+
+        if (this.showLabels.value) {
+            slices.push(this.valueLabelPosition);
+            slices.push(this.valuePrefix);
+            slices.push(this.valueSuffix);
+            slices.push(this.valueFontSize);
+            slices.push(this.valueFontFamily);
+            slices.push(this.valueLabelColor);
+            slices.push(this.valueBold);
+            slices.push(this.valueItalic);
+        }
+
+        this.slices = slices;
+    }
+}
+
+/**
+ * Accessibility and high-density mode settings
+ */
+class UxAccessibilityCard extends FormattingSettingsCard {
+    compactMode = new formattingSettings.ToggleSwitch({
+        name: "compactMode",
+        displayName: "Enable Compact Mode",
+        value: false
+    });
+
+    hideSecondaryText = new formattingSettings.ToggleSwitch({
+        name: "hideSecondaryText",
+        displayName: "Hide Secondary Text",
+        value: false
+    });
+
+    disableAnimations = new formattingSettings.ToggleSwitch({
+        name: "disableAnimations",
+        displayName: "Turn Off Animations",
+        value: false
+    });
+
+    minLabelFontSize = new formattingSettings.NumUpDown({
+        name: "minLabelFontSize",
+        displayName: "Minimum Label Font Size",
+        value: 10
+    });
+
+    focusRingColor = new formattingSettings.ColorPicker({
+        name: "focusRingColor",
+        displayName: "Keyboard Focus Ring Color",
+        value: { value: "#005a9e" }
+    });
+
+    name: string = "uxAccessibility";
+    displayName: string = "Accessibility & Density";
+    slices: Array<FormattingSettingsSlice> = [
+        this.compactMode,
+        this.hideSecondaryText,
+        this.disableAnimations,
+        this.minLabelFontSize,
+        this.focusRingColor
+    ];
+}
+
+/**
+ * Phase 3 analytics settings
+ */
+class AnalyticsCard extends FormattingSettingsCard {
+    showTrendIndicator = new formattingSettings.ToggleSwitch({
+        name: "showTrendIndicator",
+        displayName: "Show Trend Indicator",
+        value: false
+    });
+
+    trendDisplay = new formattingSettings.ItemDropdown({
+        name: "trendDisplay",
+        displayName: "Trend Display",
+        items: [
+            { value: "delta", displayName: "Delta" },
+            { value: "percent", displayName: "Percent" },
+            { value: "both", displayName: "Both" }
+        ],
+        value: { value: "both", displayName: "Both" }
+    });
+
+    trendPosition = new formattingSettings.ItemDropdown({
+        name: "trendPosition",
+        displayName: "Trend Position",
+        items: [
+            { value: "top", displayName: "Top" },
+            { value: "right", displayName: "Right" },
+            { value: "bottom", displayName: "Bottom" },
+            { value: "left", displayName: "Left" }
+        ],
+        value: { value: "top", displayName: "Top" }
+    });
+
+    trendPositiveColor = new formattingSettings.ColorPicker({
+        name: "trendPositiveColor",
+        displayName: "Trend Positive Color",
+        value: { value: "#0b6a0b" }
+    });
+
+    trendNegativeColor = new formattingSettings.ColorPicker({
+        name: "trendNegativeColor",
+        displayName: "Trend Negative Color",
+        value: { value: "#a20d18" }
+    });
+
+    trendNeutralColor = new formattingSettings.ColorPicker({
+        name: "trendNeutralColor",
+        displayName: "Trend Neutral Color",
+        value: { value: "#666666" }
+    });
+
+    trendFontSize = new formattingSettings.NumUpDown({
+        name: "trendFontSize",
+        displayName: "Trend Font Size",
+        value: 11
+    });
+
+    trendFontFamily = new formattingSettings.FontPicker({
+        name: "trendFontFamily",
+        displayName: "Trend Font Family",
+        value: "Segoe UI, sans-serif"
+    });
+
+    trendBold = new formattingSettings.ToggleSwitch({
+        name: "trendBold",
+        displayName: "Trend Bold",
+        value: true
+    });
+
+    trendItalic = new formattingSettings.ToggleSwitch({
+        name: "trendItalic",
+        displayName: "Trend Italic",
+        value: false
+    });
+
+    showTargetBands = new formattingSettings.ToggleSwitch({
+        name: "showTargetBands",
+        displayName: "Show Target Bands",
+        value: false
+    });
+
+    targetBandTolerancePercent = new formattingSettings.NumUpDown({
+        name: "targetBandTolerancePercent",
+        displayName: "Target Tolerance (%)",
+        value: 5
+    });
+
+    showTargetBandLabel = new formattingSettings.ToggleSwitch({
+        name: "showTargetBandLabel",
+        displayName: "Show Target Band Label",
+        value: true
+    });
+
+    belowTargetColor = new formattingSettings.ColorPicker({
+        name: "belowTargetColor",
+        displayName: "Below Target Color",
+        value: { value: "#f8d7da" }
+    });
+
+    nearTargetColor = new formattingSettings.ColorPicker({
+        name: "nearTargetColor",
+        displayName: "Near Target Color",
+        value: { value: "#fff3cd" }
+    });
+
+    aboveTargetColor = new formattingSettings.ColorPicker({
+        name: "aboveTargetColor",
+        displayName: "Above Target Color",
+        value: { value: "#d1e7dd" }
+    });
+
+    belowTargetLabel = new formattingSettings.TextInput({
+        name: "belowTargetLabel",
+        displayName: "Below Target Label",
+        value: "Below",
+        placeholder: "Below"
+    });
+
+    nearTargetLabel = new formattingSettings.TextInput({
+        name: "nearTargetLabel",
+        displayName: "Near Target Label",
+        value: "Near",
+        placeholder: "Near"
+    });
+
+    aboveTargetLabel = new formattingSettings.TextInput({
+        name: "aboveTargetLabel",
+        displayName: "Above Target Label",
+        value: "Above",
+        placeholder: "Above"
+    });
+
+    name: string = "analyticsSettings";
+    displayName: string = "Analytics";
+    slices: Array<FormattingSettingsSlice> = [
+        this.showTrendIndicator,
+        this.trendDisplay,
+        this.trendPosition,
+        this.trendPositiveColor,
+        this.trendNegativeColor,
+        this.trendNeutralColor,
+        this.trendFontSize,
+        this.trendFontFamily,
+        this.trendBold,
+        this.trendItalic,
+        this.showTargetBands,
+        this.targetBandTolerancePercent,
+        this.showTargetBandLabel,
+        this.belowTargetColor,
+        this.nearTargetColor,
+        this.aboveTargetColor,
+        this.belowTargetLabel,
+        this.nearTargetLabel,
+        this.aboveTargetLabel
+    ];
+
+    populateSlices() {
+        const slices: Array<FormattingSettingsSlice> = [this.showTrendIndicator];
+
+        if (this.showTrendIndicator.value) {
+            slices.push(this.trendDisplay);
+            slices.push(this.trendPosition);
+            slices.push(this.trendPositiveColor);
+            slices.push(this.trendNegativeColor);
+            slices.push(this.trendNeutralColor);
+            slices.push(this.trendFontSize);
+            slices.push(this.trendFontFamily);
+            slices.push(this.trendBold);
+            slices.push(this.trendItalic);
+        }
+
+        slices.push(this.showTargetBands);
+        if (this.showTargetBands.value) {
+            slices.push(this.targetBandTolerancePercent);
+            slices.push(this.showTargetBandLabel);
+            slices.push(this.belowTargetColor);
+            slices.push(this.nearTargetColor);
+            slices.push(this.aboveTargetColor);
+            slices.push(this.belowTargetLabel);
+            slices.push(this.nearTargetLabel);
+            slices.push(this.aboveTargetLabel);
+        }
+
+        this.slices = slices;
+    }
 }
 
 /**
 * visual settings model class
 *
 */
+
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     // Create formatting settings model formatting cards
     gaugeSettings = new GaugeSettingsCard();
@@ -538,6 +902,16 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     colorZones = new ColorZonesCard();
     targetSettings = new TargetSettingsCard();
     categoryLayout = new CategoryLayoutCard();
+    uxAccessibility = new UxAccessibilityCard();
+    analyticsSettings = new AnalyticsCard();
 
-    cards = [this.gaugeSettings, this.valueFormatting, this.categoryLayout, this.colorZones, this.targetSettings];
+    cards = [
+        this.gaugeSettings,
+        this.categoryLayout,
+        this.valueFormatting,
+        this.colorZones,
+        this.targetSettings,
+        this.analyticsSettings,
+        this.uxAccessibility
+    ];
 }

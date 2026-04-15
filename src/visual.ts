@@ -51,6 +51,7 @@ import { VisualFormattingSettingsModel } from "./settings";
 interface GaugeData {
     category: string | null;
     value: number;
+    previousValue: number | null;
     minimum: number;
     maximum: number;
     target: number | null;
@@ -150,26 +151,29 @@ export class Visual implements IVisual {
                 this.selectionManager.clear();
             }
         });
+
+        this.svg.on('focusin', () => {
+            this.svg.classed('keyboard-focus', true);
+        });
+
+        this.svg.on('focusout', () => {
+            this.svg.classed('keyboard-focus', false);
+        });
     }
 
     public update(options: VisualUpdateOptions) {
         try {
-            // Signal rendering start
             this.host.eventService?.renderingStarted(options);
 
             const updateOptions = options as VisualUpdateOptions & { allowInteractions?: boolean };
             this.allowInteractions = updateOptions.allowInteractions !== false;
 
-            // Get formatting settings
             this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
-                VisualFormattingSettingsModel, 
+                VisualFormattingSettingsModel,
                 options.dataViews?.[0]
             );
-            
-            // Get color palette from host
+
             this.colorPalette = this.host.colorPalette;
-            
-            // Detect high contrast mode
             const palette = this.colorPalette as any;
             this.isHighContrast = !!palette.isHighContrast;
             if (this.isHighContrast) {
@@ -180,15 +184,21 @@ export class Visual implements IVisual {
                     hyperlink: palette.hyperlink?.value || palette.foreground?.value || "#000000"
                 };
             }
-            
-            // Update color zones slices based on threshold mode
+
+            this.formattingSettings.gaugeSettings.populateSlices();
+            this.formattingSettings.valueFormatting.populateSlices();
             this.formattingSettings.colorZones.populateSlices();
-            
-            // Get viewport dimensions
+            this.formattingSettings.targetSettings.populateSlices();
+            this.formattingSettings.analyticsSettings.populateSlices();
+
+            const focusRingColor = this.formattingSettings.uxAccessibility.focusRingColor.value.value;
+            this.svg.style('outline-color', focusRingColor);
+            this.svg.classed('compact-mode', this.formattingSettings.uxAccessibility.compactMode.value);
+            this.svg.classed('no-motion', this.formattingSettings.uxAccessibility.disableAnimations.value);
+
             const width = options.viewport.width;
             const height = options.viewport.height;
-            
-            // Extract data from dataViews
+
             const dataView = options.dataViews?.[0];
             if (!dataView) {
                 this.renderLandingPage(width, height);
@@ -197,22 +207,19 @@ export class Visual implements IVisual {
             }
 
             const gaugeDataArray = this.extractData(dataView);
-            if (gaugeDataArray === null || gaugeDataArray.length === 0) {
+            if (!gaugeDataArray || gaugeDataArray.length === 0) {
                 this.renderLandingPage(width, height);
                 this.host.eventService?.renderingFinished(options);
                 return;
             }
-            
-            // Render the gauges
+
+            this.applyRootAriaLabel(gaugeDataArray);
             this.renderMultipleGauges(gaugeDataArray, width, height);
 
-            // Signal rendering complete
             this.host.eventService?.renderingFinished(options);
-            
         } catch (error) {
             console.error('Error in update:', error);
             this.clear();
-            // Signal rendering complete even on error
             this.host.eventService?.renderingFinished(options);
         }
     }
@@ -240,6 +247,7 @@ export class Visual implements IVisual {
                     const category = categories[catIndex] !== null ? String(categories[catIndex]) : null;
                     
                     let value: number | null = null;
+                    let previousValue: number | null = null;
                     let minimum = 0;
                     let maximum = 100;
                     let target: number | null = null;
@@ -267,6 +275,8 @@ export class Visual implements IVisual {
                             
                             if (role['value']) {
                                 value = val;
+                            } else if (role['previousValue']) {
+                                previousValue = Number.isFinite(val) ? val : null;
                             } else if (role['minimum']) {
                                 minimum = val;
                             } else if (role['maximum']) {
@@ -302,6 +312,7 @@ export class Visual implements IVisual {
                         gaugesData.push({
                             category,
                             value,
+                            previousValue,
                             minimum,
                             maximum,
                             target,
@@ -326,41 +337,56 @@ export class Visual implements IVisual {
 
     private renderMultipleGauges(gaugesData: GaugeData[], width: number, height: number) {
         this.clear();
-        
+
         const settings = this.formattingSettings.gaugeSettings;
-        const gaugeWidthSetting = settings.gaugeWidth.value;
+        const compactFactor = this.getLayoutDensityFactor();
+        const gaugeBodyWidth = Math.max(40, settings.gaugeWidth.value);
         const gaugeCount = gaugesData.length;
+        if (gaugeCount === 0) return;
+
         const configuredPadding = this.formattingSettings.gaugeSettings.gaugePadding.value;
         const categoryPosition = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
-        const categoryPadding = this.formattingSettings.categoryLayout.categoryPadding.value;
-        const showCategoryLabel = this.formattingSettings.gaugeSettings.showCategoryLabel.value;
-        const padding = Math.max(0, configuredPadding);
+        const categoryPadding = Math.max(2, Math.round(this.formattingSettings.categoryLayout.categoryPadding.value * compactFactor));
+        const showCategoryLabel = this.formattingSettings.gaugeSettings.showCategoryLabel.value && !this.isSecondaryTextHidden();
+        const isVertical = settings.orientation.value.value === 'vertical';
+        const padding = Math.max(0, Math.round(configuredPadding * compactFactor));
         const categoryFontSize = this.formattingSettings.categoryLayout.categoryFontSize.value;
+
         const maxCategoryLines = showCategoryLabel
             ? gaugesData.reduce((maxLines, gauge) => {
                 if (!gauge.category) return maxLines;
-                const lines = this.getCategoryLines(gauge.category, gaugeWidthSetting, categoryFontSize, categoryPosition).length;
+                const lines = this.getCategoryLines(gauge.category, gaugeBodyWidth, categoryFontSize, categoryPosition).length;
                 return Math.max(maxLines, lines);
             }, 1)
             : 1;
         const categoryBlockHeight = Math.max(12, categoryFontSize + 2) * Math.max(1, maxCategoryLines);
-        const topMargin = (showCategoryLabel && categoryPosition.startsWith('top'))
+
+        const maxTopTrendMargin = gaugesData.reduce((maxMargin, gauge) => {
+            const trendMetrics = this.getTrendMetrics(gauge);
+            if (trendMetrics.lineCount === 0 || trendMetrics.position !== 'top') {
+                return maxMargin;
+            }
+            return Math.max(maxMargin, (trendMetrics.lineCount * Math.max(12, this.getEffectiveLabelFontSize(this.formattingSettings.analyticsSettings.trendFontSize.value) + 2)) + 12);
+        }, 0);
+
+        const maxBottomMargin = gaugesData.reduce(
+            (maxMargin, gauge) => Math.max(maxMargin, this.getGaugeBottomMargin(gauge, isVertical, categoryBlockHeight, categoryPadding, categoryPosition, showCategoryLabel)),
+            this.getGaugeBottomMargin(gaugesData[0], isVertical, categoryBlockHeight, categoryPadding, categoryPosition, showCategoryLabel)
+        );
+
+        const topBaseMargin = (showCategoryLabel && categoryPosition.startsWith('top'))
             ? (categoryPadding + categoryBlockHeight + 10)
             : 16;
-        const bottomMargin = (showCategoryLabel && (categoryPosition === 'bottom-center' || categoryPosition === 'bottom-angled-45'))
-            ? (categoryPadding + categoryBlockHeight + 10)
-            : 24;
-        
-        if (gaugeCount === 0) return;
-        
+        const topMargin = Math.max(10, Math.round((topBaseMargin + maxTopTrendMargin) * compactFactor));
+        const bottomMargin = maxBottomMargin;
+
         // Calculate layout dimensions
-        const gaugeWidth = Math.max(40, gaugeWidthSetting);
+        const gaugeWidth = gaugeBodyWidth;
         const cols = gaugeCount;
         const requiredWidth = cols * gaugeWidth + Math.max(0, cols - 1) * padding;
         const horizontalScrollbarClearance = requiredWidth > (width + 1) ? 16 : 0;
         const minimumBodyHeight = 80;
         const minimumSlotHeight = minimumBodyHeight + topMargin + bottomMargin;
-        // Stretch the gauge slot to the viewport height so gauges grow when the visual is made taller.
         const gaugeHeightCalc = Math.max(minimumSlotHeight + horizontalScrollbarClearance, Math.max(1, height));
 
         // Start at viewport size; after rendering, resize to actual drawn bounds.
@@ -368,30 +394,28 @@ export class Visual implements IVisual {
             .attr('width', Math.max(1, width))
             .attr('height', Math.max(1, height));
 
-        const xStart = 0;
-        
         // Render each gauge
         for (let i = 0; i < gaugeCount; i++) {
             const row = Math.floor(i / cols);
             const col = i % cols;
-            
-            // Add padding to positions
-            const x = xStart + col * (gaugeWidth + padding);
+            const x = col * (gaugeWidth + padding);
             const y = row * (gaugeHeightCalc + padding);
-            
-            // Create a group for this gauge
+
             const gaugeGroup = this.container.append('g')
                 .classed('gauge-item', true)
                 .attr('transform', `translate(${x}, ${y})`);
 
             const gaugeData = gaugesData[i];
+            gaugeGroup
+                .attr('role', 'img')
+                .attr('aria-label', this.getGaugeAriaLabel(gaugeData, i, gaugeCount));
+
             if (this.allowInteractions && gaugeData.selectionId) {
                 gaugeGroup.style('cursor', 'pointer');
                 gaugeGroup.on('click', (event: MouseEvent) => {
                     event.stopPropagation();
                     this.selectionManager.select(gaugeData.selectionId as ISelectionId, event.ctrlKey);
                 });
-                // Add context menu support for individual gauge
                 gaugeGroup.on('contextmenu', (event: PointerEvent) => {
                     event.stopPropagation();
                     this.selectionManager.showContextMenu(gaugeData.selectionId as ISelectionId, {
@@ -403,15 +427,10 @@ export class Visual implements IVisual {
             } else {
                 gaugeGroup.style('cursor', 'default');
             }
-            
-            // Temporarily set container to this gaugeGroup
+
             const originalContainer = this.container;
             this.container = gaugeGroup;
-            
-            // Render the individual gauge
             this.render(gaugeData, gaugeWidth, gaugeHeightCalc, maxCategoryLines, horizontalScrollbarClearance);
-            
-            // Restore original container
             this.container = originalContainer;
         }
 
@@ -431,11 +450,9 @@ export class Visual implements IVisual {
                 .attr('width', finalWidth)
                 .attr('height', finalHeight);
 
-            // Toggle each axis explicitly to avoid host/browser showing scrollbars when not needed.
             this.scrollContainer.style.overflowX = hasHorizontalOverflow ? 'auto' : 'hidden';
             this.scrollContainer.style.overflowY = hasVerticalOverflow ? 'auto' : 'hidden';
         } else {
-            // Fallback: use required width and viewport height assumptions.
             this.scrollContainer.style.overflowX = requiredWidth > (width + 1) ? 'auto' : 'hidden';
             this.scrollContainer.style.overflowY = 'hidden';
         }
@@ -443,10 +460,11 @@ export class Visual implements IVisual {
 
     private render(data: GaugeData, width: number, height: number, fixedCategoryLineCount?: number, bottomOverlayOffset: number = 0) {
         const settings = this.formattingSettings;
+        const compactFactor = this.getLayoutDensityFactor();
         const isVertical = settings.gaugeSettings.orientation.value.value === 'vertical';
-        const showCategoryLabel = settings.gaugeSettings.showCategoryLabel.value;
+        const showCategoryLabel = settings.gaugeSettings.showCategoryLabel.value && !this.isSecondaryTextHidden();
         const categoryPosition = settings.categoryLayout.categoryPosition.value.value as string;
-        const categoryPadding = settings.categoryLayout.categoryPadding.value;
+        const categoryPadding = Math.max(2, Math.round(settings.categoryLayout.categoryPadding.value * compactFactor));
         const configuredGaugeWidth = settings.gaugeSettings.gaugeWidth.value;
         const categoryFontSize = settings.categoryLayout.categoryFontSize.value;
         const categoryLineCount = fixedCategoryLineCount ?? ((showCategoryLabel && data.category)
@@ -455,13 +473,16 @@ export class Visual implements IVisual {
         const categoryBlockHeight = Math.max(12, categoryFontSize + 2) * Math.max(1, categoryLineCount);
         
         // Define margins and dimensions with extra space for left-side labels/ticks and category placement
+        const trendMetrics = this.getTrendMetrics(data);
+        const topTrendMargin = trendMetrics.lineCount > 0 && trendMetrics.position === 'top'
+            ? (trendMetrics.lineCount * Math.max(12, this.getEffectiveLabelFontSize(this.formattingSettings.analyticsSettings.trendFontSize.value) + 2)) + 12
+            : 0;
+        const baseTopMargin = (showCategoryLabel && categoryPosition.startsWith('top')) ? (categoryPadding + categoryBlockHeight + 10) : 16;
         const margin = {
-            top: (showCategoryLabel && categoryPosition.startsWith('top')) ? (categoryPadding + categoryBlockHeight + 10) : 16,
-            right: 20,
-            bottom: ((showCategoryLabel && (categoryPosition === 'bottom-center' || categoryPosition === 'bottom-angled-45'))
-                ? (categoryPadding + categoryBlockHeight + 10)
-                : 24) + bottomOverlayOffset,
-            left: isVertical ? 62 : 40
+            top: Math.max(10, Math.round((baseTopMargin + topTrendMargin) * compactFactor)),
+            right: this.getGaugeRightMargin(data, isVertical),
+            bottom: this.getGaugeBottomMargin(data, isVertical, categoryBlockHeight, categoryPadding, categoryPosition, showCategoryLabel) + bottomOverlayOffset,
+            left: this.getGaugeLeftMargin(data, isVertical)
         };
         const maxAvailableWidth = Math.max(30, width - margin.left - margin.right);
         const gaugeWidth = isVertical
@@ -497,9 +518,15 @@ export class Visual implements IVisual {
         // Render border
         this.renderBorder(gaugeWidth, gaugeHeight, isVertical);
         
-        // Render target marker if enabled and target exists
-        if (settings.targetSettings.showTarget.value && data.target !== null) {
-            this.renderTargetMarker(data, scale, gaugeWidth, gaugeHeight, isVertical);
+        const effectiveTarget = this.getEffectiveTargetValue(data);
+
+        if (settings.analyticsSettings.showTargetBands.value && effectiveTarget !== null) {
+            this.renderTargetBandState(data, effectiveTarget, gaugeWidth, gaugeHeight, isVertical);
+        }
+
+        // Render target marker if enabled and an effective target exists
+        if (settings.targetSettings.showTarget.value && effectiveTarget !== null) {
+            this.renderTargetMarker(data, effectiveTarget, scale, gaugeWidth, gaugeHeight, isVertical);
         }
         
         // Render labels if enabled
@@ -508,13 +535,17 @@ export class Visual implements IVisual {
             this.renderLabels(data, scale, gaugeWidth, gaugeHeight, isVertical, margin, formatType);
         }
         
-        // Render comparison indicator if enabled and target exists
-        if (settings.targetSettings.showComparison.value && data.target !== null) {
-            this.renderComparison(data, gaugeWidth, gaugeHeight, isVertical, margin);
+        // Render comparison indicator if enabled and an effective target exists
+        if (settings.targetSettings.showComparison.value && effectiveTarget !== null && !this.isSecondaryTextHidden()) {
+            this.renderComparison(data, effectiveTarget, gaugeWidth, gaugeHeight, isVertical, margin);
+        }
+
+        if (settings.analyticsSettings.showTrendIndicator.value && data.previousValue !== null && !this.isSecondaryTextHidden()) {
+            this.renderTrendIndicator(data, gaugeWidth, gaugeHeight, isVertical);
         }
         
         // Render category label if enabled and category exists
-        if (settings.gaugeSettings.showCategoryLabel.value && data.category !== null) {
+        if (showCategoryLabel && data.category !== null) {
             this.renderCategoryLabel(data.category, gaugeWidth, gaugeHeight, isVertical);
         }
         
@@ -583,12 +614,12 @@ export class Visual implements IVisual {
         });
         
         // Render threshold marker lines and optional labels
-        if (settings.showThresholdLabels.value) {
+        if (settings.showThresholdLabels.value && !this.isSecondaryTextHidden()) {
             const categoryPosition = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
             const thresholdOnRight = isVertical && categoryPosition === 'left';
-            const thresholdFontSize = settings.thresholdFontSize.value;
+            const thresholdFontSize = this.getEffectiveLabelFontSize(settings.thresholdFontSize.value);
             const thresholdFontFamily = settings.thresholdFontFamily.value;
-            const thresholdLabelColor = settings.thresholdLabelColor.value.value;
+            const thresholdLabelColor = this.getContrastSafeTextColor(settings.thresholdLabelColor.value.value);
             const thresholdBold = settings.thresholdBold.value;
             const thresholdItalic = settings.thresholdItalic.value;
             const lineStyle = settings.thresholdLineStyle.value.value as string;
@@ -737,7 +768,7 @@ export class Visual implements IVisual {
     private renderFillBar(data: GaugeData, scale: d3.ScaleLinear<number, number>, 
                          width: number, height: number, isVertical: boolean) {
         const fillSize = scale(data.value) - scale(data.minimum);
-        const animationDuration = this.formattingSettings.gaugeSettings.animationDuration.value;
+        const animationDuration = this.isAnimationDisabled() ? 0 : this.formattingSettings.gaugeSettings.animationDuration.value;
         const fillThicknessPercent = this.formattingSettings.gaugeSettings.fillThicknessFactor.value;
         const fillThicknessFactor = Math.max(5, Math.min(100, fillThicknessPercent)) / 100;
         
@@ -804,7 +835,8 @@ export class Visual implements IVisual {
                 .attr('fill', fillColor)
                 .attr('stroke', this.getColor('#333'))
                 .attr('stroke-width', 1)
-                .attr('opacity', 0.75);
+                .attr('opacity', 0.75)
+                .attr('aria-label', `Value fill: ${this.formatValue(data.value)}`);
 
             if (tooltipData.length > 0) {
                 this.tooltipServiceWrapper.addTooltip(
@@ -837,7 +869,8 @@ export class Visual implements IVisual {
                 .attr('fill', fillColor)
                 .attr('stroke', this.getColor('#333'))
                 .attr('stroke-width', 1)
-                .attr('opacity', 0.75);
+                .attr('opacity', 0.75)
+                .attr('aria-label', `Value fill: ${this.formatValue(data.value)}`);
 
             if (tooltipData.length > 0) {
                 this.tooltipServiceWrapper.addTooltip(
@@ -866,15 +899,13 @@ export class Visual implements IVisual {
             .attr('stroke-width', 2);
     }
 
-    private renderTargetMarker(data: GaugeData, scale: d3.ScaleLinear<number, number>, 
+    private renderTargetMarker(data: GaugeData, targetValue: number, scale: d3.ScaleLinear<number, number>, 
                                width: number, height: number, isVertical: boolean) {
-        if (data.target === null) return;
-
-        const targetValue = data.target;
         const targetPos = scale(targetValue);
         const markerColor = this.formattingSettings.targetSettings.targetColor.value.value;
         
         const markerGroup = this.container.append('g').classed('target-marker', true);
+        markerGroup.attr('aria-label', `Target marker: ${this.formatThresholdValue(targetValue)}`);
         
         // Add tooltip to target marker
         const formatType = this.formattingSettings.valueFormatting.valueFormat.value.value as string;
@@ -926,15 +957,17 @@ export class Visual implements IVisual {
                         width: number, height: number, isVertical: boolean, margin: any, formatType: string) {
         const labelsGroup = this.container.append('g').classed('labels', true);
         const valueLabelPosition = this.formattingSettings.valueFormatting.valueLabelPosition.value.value as string;
-        const valueFontSize = this.formattingSettings.valueFormatting.valueFontSize.value;
+        const valueFontSize = this.getEffectiveLabelFontSize(this.formattingSettings.valueFormatting.valueFontSize.value);
         const valueFontFamily = this.formattingSettings.valueFormatting.valueFontFamily.value;
-        const valueLabelColor = this.formattingSettings.valueFormatting.valueLabelColor.value.value;
+        const valueLabelColor = this.getContrastSafeTextColor(this.formattingSettings.valueFormatting.valueLabelColor.value.value);
         const valueBold = this.formattingSettings.valueFormatting.valueBold.value;
         const valueItalic = this.formattingSettings.valueFormatting.valueItalic.value;
         
-        const thresholdLabelColor = this.formattingSettings.colorZones.thresholdLabelColor.value.value;
+        const thresholdLabelColor = this.getContrastSafeTextColor(this.formattingSettings.colorZones.thresholdLabelColor.value.value);
         const thresholdBold = this.formattingSettings.colorZones.thresholdBold.value;
         const thresholdItalic = this.formattingSettings.colorZones.thresholdItalic.value;
+        const showMinScaleLabel = !this.isSecondaryTextHidden() && this.shouldShowScaleLabel('min');
+        const showMaxScaleLabel = !this.isSecondaryTextHidden() && this.shouldShowScaleLabel('max');
         
         const fillThicknessPercent = this.formattingSettings.gaugeSettings.fillThicknessFactor.value;
         const fillThicknessFactor = Math.max(5, Math.min(100, fillThicknessPercent)) / 100;
@@ -957,40 +990,48 @@ export class Visual implements IVisual {
         
         if (isVertical) {
             // Min tick and label on left side
-            labelsGroup.append('line')
-                .attr('x1', 0)
-                .attr('x2', -6)
-                .attr('y1', height)
-                .attr('y2', height)
-                .attr('stroke', this.getColor('#666'))
-                .attr('stroke-width', 1);
+            if (showMinScaleLabel) {
+                labelsGroup.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', -6)
+                    .attr('y1', height)
+                    .attr('y2', height)
+                    .attr('stroke', this.getColor('#666'))
+                    .attr('stroke-width', 1);
 
-            labelsGroup.append('text')
-                .attr('x', -8)
-                .attr('y', height + 4)
-                .attr('text-anchor', 'end')
-                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
-                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
-                .attr('fill', this.getColor('#666'))
-                .text(this.formatThresholdValue(data.minimum));
+                labelsGroup.append('text')
+                    .attr('x', -8)
+                    .attr('y', height + 4)
+                    .attr('text-anchor', 'end')
+                    .attr('font-size', `${this.getEffectiveLabelFontSize(this.formattingSettings.colorZones.thresholdFontSize.value)}px`)
+                    .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                    .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                    .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                    .attr('fill', thresholdLabelColor)
+                    .text(this.formatThresholdValue(data.minimum));
+            }
             
             // Max tick and label on left side
-            labelsGroup.append('line')
-                .attr('x1', 0)
-                .attr('x2', -6)
-                .attr('y1', 0)
-                .attr('y2', 0)
-                .attr('stroke', this.getColor('#666'))
-                .attr('stroke-width', 1);
+            if (showMaxScaleLabel) {
+                labelsGroup.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', -6)
+                    .attr('y1', 0)
+                    .attr('y2', 0)
+                    .attr('stroke', this.getColor('#666'))
+                    .attr('stroke-width', 1);
 
-            labelsGroup.append('text')
-                .attr('x', -8)
-                .attr('y', 4)
-                .attr('text-anchor', 'end')
-                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
-                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
-                .attr('fill', this.getColor('#666'))
-                .text(this.formatThresholdValue(data.maximum));
+                labelsGroup.append('text')
+                    .attr('x', -8)
+                    .attr('y', 4)
+                    .attr('text-anchor', 'end')
+                    .attr('font-size', `${this.getEffectiveLabelFontSize(this.formattingSettings.colorZones.thresholdFontSize.value)}px`)
+                    .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                    .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                    .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                    .attr('fill', thresholdLabelColor)
+                    .text(this.formatThresholdValue(data.maximum));
+            }
             
             // Current value label (side)
             const valueY = height - scale(data.value);
@@ -1055,44 +1096,48 @@ export class Visual implements IVisual {
             }
         } else {
             // Min tick and label on left side
-            labelsGroup.append('line')
-                .attr('x1', 0)
-                .attr('x2', -6)
-                .attr('y1', height)
-                .attr('y2', height)
-                .attr('stroke', this.getColor('#666'))
-                .attr('stroke-width', 1);
+            if (showMinScaleLabel) {
+                labelsGroup.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', -6)
+                    .attr('y1', height)
+                    .attr('y2', height)
+                    .attr('stroke', this.getColor('#666'))
+                    .attr('stroke-width', 1);
 
-            labelsGroup.append('text')
-                .attr('x', -8)
-                .attr('y', height + 4)
-                .attr('text-anchor', 'end')
-                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
-                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
-                .attr('font-weight', thresholdBold ? 'bold' : 'normal')
-                .attr('font-style', thresholdItalic ? 'italic' : 'normal')
-                .attr('fill', thresholdLabelColor)
-                .text(this.formatThresholdValue(data.minimum));
+                labelsGroup.append('text')
+                    .attr('x', -8)
+                    .attr('y', height + 4)
+                    .attr('text-anchor', 'end')
+                    .attr('font-size', `${this.getEffectiveLabelFontSize(this.formattingSettings.colorZones.thresholdFontSize.value)}px`)
+                    .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                    .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                    .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                    .attr('fill', thresholdLabelColor)
+                    .text(this.formatThresholdValue(data.minimum));
+            }
             
             // Max tick and label on left side
-            labelsGroup.append('line')
-                .attr('x1', 0)
-                .attr('x2', -6)
-                .attr('y1', 0)
-                .attr('y2', 0)
-                .attr('stroke', this.getColor('#666'))
-                .attr('stroke-width', 1);
+            if (showMaxScaleLabel) {
+                labelsGroup.append('line')
+                    .attr('x1', 0)
+                    .attr('x2', -6)
+                    .attr('y1', 0)
+                    .attr('y2', 0)
+                    .attr('stroke', this.getColor('#666'))
+                    .attr('stroke-width', 1);
 
-            labelsGroup.append('text')
-                .attr('x', -8)
-                .attr('y', 4)
-                .attr('text-anchor', 'end')
-                .attr('font-size', `${this.formattingSettings.colorZones.thresholdFontSize.value}px`)
-                .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
-                .attr('font-weight', thresholdBold ? 'bold' : 'normal')
-                .attr('font-style', thresholdItalic ? 'italic' : 'normal')
-                .attr('fill', thresholdLabelColor)
-                .text(this.formatThresholdValue(data.maximum));
+                labelsGroup.append('text')
+                    .attr('x', -8)
+                    .attr('y', 4)
+                    .attr('text-anchor', 'end')
+                    .attr('font-size', `${this.getEffectiveLabelFontSize(this.formattingSettings.colorZones.thresholdFontSize.value)}px`)
+                    .attr('font-family', this.formattingSettings.colorZones.thresholdFontFamily.value)
+                    .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                    .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                    .attr('fill', thresholdLabelColor)
+                    .text(this.formatThresholdValue(data.maximum));
+            }
             
             // Current value label with configurable placement
             const valueX = scale(data.value);
@@ -1161,48 +1206,164 @@ export class Visual implements IVisual {
         }
     }
 
-    private renderComparison(data: GaugeData, width: number, height: number, 
+    private renderComparison(data: GaugeData, targetValue: number, width: number, height: number, 
                             isVertical: boolean, margin: any) {
-        if (data.target === null) return;
-
         const comparisonDisplay = this.formattingSettings.targetSettings.comparisonDisplay.value.value as string;
         if (comparisonDisplay === 'off') return;
+        const comparisonPosition = this.getComparisonPosition();
         
-        const delta = data.value - data.target;
-        const hasValidTargetForPercent = data.target !== 0;
-        const deltaPercent = hasValidTargetForPercent ? (delta / data.target) : null;
-        const absoluteText = this.formatComparisonAbsolute(delta);
-        const percentText = deltaPercent !== null ? this.formatComparisonPercent(deltaPercent) : 'N/A';
-        const comparisonText = comparisonDisplay === 'absolute'
-            ? absoluteText
-            : comparisonDisplay === 'percent'
-                ? percentText
-                : `${absoluteText} (${percentText})`;
+        const delta = data.value - targetValue;
+        const hasValidTargetForPercent = targetValue !== 0;
+        const deltaPercent = hasValidTargetForPercent ? (delta / targetValue) : null;
+        const comparisonLines = this.getComparisonLines(delta, deltaPercent, comparisonDisplay);
         
         const color = delta >= 0
             ? this.formattingSettings.targetSettings.comparisonPositiveColor.value.value
             : this.formattingSettings.targetSettings.comparisonNegativeColor.value.value;
+        const fontSize = this.getEffectiveLabelFontSize(this.formattingSettings.targetSettings.comparisonFontSize.value);
+        const fontFamily = this.formattingSettings.targetSettings.comparisonFontFamily.value;
+        const fontWeight = this.formattingSettings.targetSettings.comparisonBold.value ? 'bold' : 'normal';
+        const fontStyle = this.formattingSettings.targetSettings.comparisonItalic.value ? 'italic' : 'normal';
+        const lineHeight = Math.max(12, fontSize + 2);
         
         const comparisonGroup = this.container.append('g').classed('comparison', true);
-        
-        if (isVertical) {
-            comparisonGroup.append('text')
-                .attr('x', width + 10)
-                .attr('y', Math.max(16, height / 2))
-                .attr('text-anchor', 'start')
-                .attr('font-size', '12px')
+
+        const textElement = comparisonGroup.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('font-size', `${fontSize}px`)
+            .attr('font-family', fontFamily)
+            .attr('font-weight', fontWeight)
+            .attr('font-style', fontStyle)
+            .attr('fill', this.getContrastSafeTextColor(color));
+
+        let comparisonX = width / 2;
+        let comparisonY = height + lineHeight + 10;
+        let textAnchor: 'start' | 'middle' | 'end' = 'middle';
+
+        if (comparisonPosition === 'top') {
+            comparisonX = width / 2;
+            comparisonY = lineHeight;
+            textAnchor = 'middle';
+        } else if (comparisonPosition === 'left') {
+            comparisonX = -10;
+            comparisonY = Math.max(lineHeight, (height / 2) - (((comparisonLines.length - 1) * lineHeight) / 2));
+            textAnchor = 'end';
+        } else if (comparisonPosition === 'right') {
+            comparisonX = width + 10;
+            comparisonY = Math.max(lineHeight, (height / 2) - (((comparisonLines.length - 1) * lineHeight) / 2));
+            textAnchor = 'start';
+        }
+
+        textElement.attr('text-anchor', textAnchor);
+        textElement
+            .attr('x', comparisonX)
+            .attr('y', comparisonY);
+
+        comparisonLines.forEach((line, index) => {
+            textElement.append('tspan')
+                .attr('x', comparisonX)
+                .attr('dy', index === 0 ? 0 : lineHeight)
+                .text(line);
+        });
+    }
+
+    private renderTrendIndicator(data: GaugeData, width: number, height: number, isVertical: boolean): void {
+        if (data.previousValue === null) {
+            return;
+        }
+
+        const delta = data.value - data.previousValue;
+        const hasPercent = data.previousValue !== 0;
+        const deltaPercent = hasPercent ? (delta / data.previousValue) : null;
+        const directionArrow = delta > 0 ? '▲' : (delta < 0 ? '▼' : '▶');
+        const trendSettings = this.formattingSettings.analyticsSettings;
+        const trendDisplay = this.normalizeEnumString(trendSettings.trendDisplay.value, ['delta', 'percent', 'both'], 'both');
+
+        const lines: string[] = [];
+        if (trendDisplay === 'delta' || trendDisplay === 'both') {
+            lines.push(`${directionArrow} ${this.formatComparisonAbsolute(delta)}`);
+        }
+        if (trendDisplay === 'percent' || trendDisplay === 'both') {
+            lines.push(hasPercent ? this.formatComparisonPercent(deltaPercent as number) : 'N/A');
+        }
+
+        const trendColor = delta > 0
+            ? trendSettings.trendPositiveColor.value.value
+            : delta < 0
+                ? trendSettings.trendNegativeColor.value.value
+                : trendSettings.trendNeutralColor.value.value;
+
+        const fontSize = this.getEffectiveLabelFontSize(trendSettings.trendFontSize.value);
+        const lineHeight = Math.max(12, fontSize + 2);
+        const trendPosition = this.normalizeEnumString(trendSettings.trendPosition.value, ['top', 'right', 'bottom', 'left'], 'top');
+        const trendGroup = this.container.append('g').classed('trend-indicator', true);
+
+        let x = width / 2;
+        let y = -10;
+        let anchor: 'start' | 'middle' | 'end' = 'middle';
+
+        if (trendPosition === 'right') {
+            x = width + 10;
+            y = Math.max(lineHeight, (height / 2) - (((lines.length - 1) * lineHeight) / 2));
+            anchor = 'start';
+        } else if (trendPosition === 'left') {
+            x = -10;
+            y = Math.max(lineHeight, (height / 2) - (((lines.length - 1) * lineHeight) / 2));
+            anchor = 'end';
+        } else if (trendPosition === 'bottom') {
+            x = width / 2;
+            y = height + lineHeight + 10;
+            anchor = 'middle';
+        }
+
+        const text = trendGroup.append('text')
+            .attr('x', x)
+            .attr('y', y)
+            .attr('text-anchor', anchor)
+            .attr('font-size', `${fontSize}px`)
+            .attr('font-family', trendSettings.trendFontFamily.value)
+            .attr('font-weight', trendSettings.trendBold.value ? 'bold' : 'normal')
+            .attr('font-style', trendSettings.trendItalic.value ? 'italic' : 'normal')
+            .attr('fill', this.getContrastSafeTextColor(trendColor));
+
+        lines.forEach((line, index) => {
+            text.append('tspan')
+                .attr('x', x)
+                .attr('dy', index === 0 ? 0 : lineHeight)
+                .text(line);
+        });
+    }
+
+    private renderTargetBandState(data: GaugeData, targetValue: number, width: number, height: number, isVertical: boolean): void {
+        const band = this.getTargetBandState(data, targetValue);
+        if (!band) {
+            return;
+        }
+
+        const bandGroup = this.container.append('g').classed('target-band-state', true);
+        bandGroup.append('rect')
+            .attr('x', 0)
+            .attr('y', 0)
+            .attr('width', width)
+            .attr('height', height)
+            .attr('fill', band.color)
+            .attr('opacity', 0.16)
+            .attr('pointer-events', 'none');
+
+        if (this.formattingSettings.analyticsSettings.showTargetBandLabel.value && !this.isSecondaryTextHidden()) {
+            const fontSize = this.getEffectiveLabelFontSize(this.formattingSettings.analyticsSettings.trendFontSize.value);
+            const labelX = isVertical ? width / 2 : 6;
+            const labelY = isVertical ? 14 : Math.max(14, height - 6);
+
+            bandGroup.append('text')
+                .attr('x', labelX)
+                .attr('y', labelY)
+                .attr('text-anchor', isVertical ? 'middle' : 'start')
+                .attr('font-size', `${fontSize}px`)
+                .attr('font-family', this.formattingSettings.analyticsSettings.trendFontFamily.value)
                 .attr('font-weight', 'bold')
-                .attr('fill', color)
-                .text(comparisonText);
-        } else {
-            comparisonGroup.append('text')
-                .attr('x', width + 10)
-                .attr('y', height + 25)
-                .attr('text-anchor', 'start')
-                .attr('font-size', '12px')
-                .attr('font-weight', 'bold')
-                .attr('fill', color)
-                .text(comparisonText);
+                .attr('fill', this.getContrastSafeTextColor('#333333'))
+                .text(band.label);
         }
     }
 
@@ -1210,10 +1371,10 @@ export class Visual implements IVisual {
         const categoryGroup = this.container.append('g').classed('category-label', true);
         
         // Get category layout settings
-        const fontSize = this.formattingSettings.categoryLayout.categoryFontSize.value;
+        const fontSize = this.getEffectiveLabelFontSize(this.formattingSettings.categoryLayout.categoryFontSize.value);
         const position = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
         const categoryPadding = this.formattingSettings.categoryLayout.categoryPadding.value;
-        const textColor = this.formattingSettings.categoryLayout.categoryTextColor.value.value;
+        const textColor = this.getContrastSafeTextColor(this.formattingSettings.categoryLayout.categoryTextColor.value.value);
         const isBold = this.formattingSettings.categoryLayout.categoryBold.value;
         
         const fontWeight = isBold ? 'bold' : 'normal';
@@ -1517,6 +1678,320 @@ export class Visual implements IVisual {
         return format.format(deltaPercent);
     }
 
+    private getComparisonLines(delta: number, deltaPercent: number | null, comparisonDisplay: string): string[] {
+        if (comparisonDisplay === 'off') {
+            return [];
+        }
+
+        const absoluteText = this.formatComparisonAbsolute(delta);
+        const percentText = deltaPercent !== null ? this.formatComparisonPercent(deltaPercent) : 'N/A';
+
+        if (comparisonDisplay === 'absolute') {
+            return [absoluteText];
+        }
+
+        if (comparisonDisplay === 'percent') {
+            return [percentText];
+        }
+
+        return [absoluteText, percentText];
+    }
+
+    private getEstimatedTextWidth(text: string, fontSize: number): number {
+        return Math.max(0, Math.ceil(text.length * fontSize * 0.62));
+    }
+
+    private getTargetBandState(data: GaugeData, targetValue: number): { state: 'below' | 'near' | 'above'; color: string; label: string } | null {
+        if (!Number.isFinite(targetValue)) {
+            return null;
+        }
+
+        const tolerancePct = Math.max(0, this.formattingSettings.analyticsSettings.targetBandTolerancePercent.value) / 100;
+        const toleranceAmount = Math.abs(targetValue) * tolerancePct;
+        const lowerBound = targetValue - toleranceAmount;
+        const upperBound = targetValue + toleranceAmount;
+
+        // Deterministic boundary rules:
+        // - Below: value < lowerBound
+        // - Near:  lowerBound <= value <= upperBound
+        // - Above: value > upperBound
+        if (data.value < lowerBound) {
+            return {
+                state: 'below',
+                color: this.formattingSettings.analyticsSettings.belowTargetColor.value.value,
+                label: this.formattingSettings.analyticsSettings.belowTargetLabel.value || 'Below'
+            };
+        }
+
+        if (data.value > upperBound) {
+            return {
+                state: 'above',
+                color: this.formattingSettings.analyticsSettings.aboveTargetColor.value.value,
+                label: this.formattingSettings.analyticsSettings.aboveTargetLabel.value || 'Above'
+            };
+        }
+
+        return {
+            state: 'near',
+            color: this.formattingSettings.analyticsSettings.nearTargetColor.value.value,
+            label: this.formattingSettings.analyticsSettings.nearTargetLabel.value || 'Near'
+        };
+    }
+
+    private getTrendMetrics(data: GaugeData): { lineCount: number; maxLineWidth: number; position: string } {
+        if (!this.formattingSettings.analyticsSettings.showTrendIndicator.value || data.previousValue === null || this.isSecondaryTextHidden()) {
+            return { lineCount: 0, maxLineWidth: 0, position: 'top' };
+        }
+
+        const delta = data.value - data.previousValue;
+        const hasPercent = data.previousValue !== 0;
+        const trendDisplay = this.normalizeEnumString(this.formattingSettings.analyticsSettings.trendDisplay.value, ['delta', 'percent', 'both'], 'both');
+        const lines: string[] = [];
+
+        if (trendDisplay === 'delta' || trendDisplay === 'both') {
+            lines.push(this.formatComparisonAbsolute(delta));
+        }
+        if (trendDisplay === 'percent' || trendDisplay === 'both') {
+            lines.push(hasPercent ? this.formatComparisonPercent(delta / data.previousValue) : 'N/A');
+        }
+
+        const fontSize = this.getEffectiveLabelFontSize(this.formattingSettings.analyticsSettings.trendFontSize.value);
+        const maxLineWidth = lines.reduce((maxWidth, line) => Math.max(maxWidth, this.getEstimatedTextWidth(line, fontSize) + fontSize), 0);
+        const position = this.normalizeEnumString(this.formattingSettings.analyticsSettings.trendPosition.value, ['top', 'right', 'bottom', 'left'], 'top');
+        return { lineCount: lines.length, maxLineWidth, position };
+    }
+
+    private isCompactModeEnabled(): boolean {
+        return this.formattingSettings.uxAccessibility.compactMode.value;
+    }
+
+    private getLayoutDensityFactor(): number {
+        return this.isCompactModeEnabled() ? 0.6 : 1;
+    }
+
+    private isSecondaryTextHidden(): boolean {
+        return this.formattingSettings.uxAccessibility.hideSecondaryText.value;
+    }
+
+    private isAnimationDisabled(): boolean {
+        return this.formattingSettings.uxAccessibility.disableAnimations.value;
+    }
+
+    private getMinimumLabelFontSize(): number {
+        return Math.max(8, Math.floor(this.formattingSettings.uxAccessibility.minLabelFontSize.value));
+    }
+
+    private getEffectiveLabelFontSize(configuredSize: number): number {
+        return Math.max(this.getMinimumLabelFontSize(), Math.floor(configuredSize));
+    }
+
+    private getContrastSafeTextColor(configuredColor: string): string {
+        if (this.isHighContrast) {
+            return this.getColor(configuredColor, 'foreground');
+        }
+        return configuredColor;
+    }
+
+    private applyRootAriaLabel(gaugesData: GaugeData[]): void {
+        const total = gaugesData.length;
+        const categories = gaugesData
+            .map((item) => item.category)
+            .filter((item) => item !== null)
+            .length;
+        const summary = `${total} gauge${total === 1 ? '' : 's'} rendered${categories > 0 ? ` across ${categories} categor${categories === 1 ? 'y' : 'ies'}` : ''}.`;
+        this.svg.attr('aria-label', `Linear Gauge visual. ${summary} Use Tab to focus and Escape to clear selection.`);
+    }
+
+    private getGaugeAriaLabel(data: GaugeData, index: number, total: number): string {
+        const categoryPart = data.category ? `Category ${data.category}. ` : '';
+        const targetValue = this.getEffectiveTargetValue(data);
+        const targetPart = targetValue !== null ? `Target ${this.formatThresholdValue(targetValue)}. ` : '';
+        const trendPart = data.previousValue !== null ? `Previous ${this.formatValue(data.previousValue)}. ` : '';
+        const bandPart = (this.formattingSettings.analyticsSettings.showTargetBands.value && targetValue !== null)
+            ? `Band ${this.getTargetBandState(data, targetValue)?.label || 'Unknown'}. `
+            : '';
+        return `Gauge ${index + 1} of ${total}. ${categoryPart}Value ${this.formatValue(data.value)}. ${trendPart}Range ${this.formatThresholdValue(data.minimum)} to ${this.formatThresholdValue(data.maximum)}. ${targetPart}${bandPart}`;
+    }
+
+    private getGaugeLeftMargin(data: GaugeData, isVertical: boolean): number {
+        const scaleLabelWidth = this.getScaleLabelWidth(data);
+        let leftMargin = isVertical ? 62 : 40;
+
+        const trendMetrics = this.getTrendMetrics(data);
+        if (trendMetrics.lineCount > 0 && trendMetrics.position === 'left') {
+            leftMargin = Math.max(leftMargin, 18 + trendMetrics.maxLineWidth);
+        }
+
+        const comparisonMetrics = this.getComparisonMetrics(data);
+        if (!this.isSecondaryTextHidden() && comparisonMetrics.lineCount > 0 && this.getComparisonPosition() === 'left') {
+            leftMargin = Math.max(leftMargin, 24 + comparisonMetrics.maxLineWidth);
+        }
+
+        if (!this.isSecondaryTextHidden() && scaleLabelWidth > 0) {
+            leftMargin = Math.max(leftMargin, 16 + scaleLabelWidth);
+        }
+
+        leftMargin = Math.max(16, Math.round(leftMargin * this.getLayoutDensityFactor()));
+
+        if (!isVertical) {
+            return leftMargin;
+        }
+
+        const valueLabelPosition = this.formattingSettings.valueFormatting.valueLabelPosition.value.value as string;
+        if (this.formattingSettings.valueFormatting.showLabels.value && valueLabelPosition === 'left') {
+            leftMargin = Math.max(leftMargin, 24 + this.getEstimatedTextWidth(this.formatValue(data.value), this.formattingSettings.valueFormatting.valueFontSize.value));
+        }
+
+        return leftMargin;
+    }
+
+    private getGaugeRightMargin(data: GaugeData, isVertical: boolean): number {
+        let rightMargin = 20;
+
+        const trendMetrics = this.getTrendMetrics(data);
+        if (trendMetrics.lineCount > 0 && trendMetrics.position === 'right') {
+            rightMargin = Math.max(rightMargin, 18 + trendMetrics.maxLineWidth);
+        }
+
+        const comparisonMetrics = this.getComparisonMetrics(data);
+        if (!this.isSecondaryTextHidden() && comparisonMetrics.lineCount > 0 && this.getComparisonPosition() === 'right') {
+            rightMargin = Math.max(rightMargin, 24 + comparisonMetrics.maxLineWidth);
+        }
+
+        if (isVertical) {
+            const valueLabelPosition = this.formattingSettings.valueFormatting.valueLabelPosition.value.value as string;
+            if (this.formattingSettings.valueFormatting.showLabels.value && valueLabelPosition === 'right') {
+                rightMargin = Math.max(rightMargin, 24 + this.getEstimatedTextWidth(this.formatValue(data.value), this.formattingSettings.valueFormatting.valueFontSize.value));
+            }
+        }
+
+        if (!this.isSecondaryTextHidden() && this.formattingSettings.colorZones.showThresholdLabels.value && this.formattingSettings.categoryLayout.categoryPosition.value.value === 'left') {
+            const thresholdWidth = this.getThresholdBoundaryValues(data)
+                .map((value) => this.truncateThresholdLabel(this.formatThresholdValue(value), Math.max(1, Math.floor(this.formattingSettings.colorZones.thresholdMaxLabelLength.value))))
+                .reduce((maxWidth, label) => Math.max(maxWidth, this.getEstimatedTextWidth(label, this.formattingSettings.colorZones.thresholdFontSize.value)), 0);
+            rightMargin = Math.max(rightMargin, 20 + thresholdWidth);
+        }
+
+        rightMargin = Math.max(12, Math.round(rightMargin * this.getLayoutDensityFactor()));
+
+        return rightMargin;
+    }
+
+    private getGaugeBottomMargin(
+        data: GaugeData,
+        isVertical: boolean,
+        categoryBlockHeight: number,
+        categoryPadding: number,
+        categoryPosition: string,
+        showCategoryLabel: boolean
+    ): number {
+        const compactFactor = this.getLayoutDensityFactor();
+        let bottomMargin = (showCategoryLabel && (categoryPosition === 'bottom-center' || categoryPosition === 'bottom-angled-45'))
+            ? (categoryPadding + categoryBlockHeight + 10)
+            : 24;
+
+        const trendMetrics = this.getTrendMetrics(data);
+        if (trendMetrics.lineCount > 0 && trendMetrics.position === 'bottom') {
+            bottomMargin += (trendMetrics.lineCount * Math.max(12, this.getEffectiveLabelFontSize(this.formattingSettings.analyticsSettings.trendFontSize.value) + 2)) + 12;
+        }
+
+        const comparisonMetrics = this.getComparisonMetrics(data);
+        if (!this.isSecondaryTextHidden() && comparisonMetrics.lineCount > 0 && this.getComparisonPosition() === 'bottom') {
+            bottomMargin += (comparisonMetrics.lineCount * Math.max(12, this.formattingSettings.targetSettings.comparisonFontSize.value + 2)) + 14;
+        }
+
+        return Math.max(14, Math.round(bottomMargin * compactFactor));
+    }
+
+    private shouldShowScaleLabel(which: 'min' | 'max'): boolean {
+        const scaleLabelDisplay = this.getScaleLabelDisplayValue();
+
+        if (scaleLabelDisplay === 'both') {
+            return true;
+        }
+
+        if (scaleLabelDisplay === 'off') {
+            return false;
+        }
+
+        return scaleLabelDisplay === which;
+    }
+
+    private getScaleLabelDisplayValue(): string {
+        return this.normalizeEnumString(
+            this.formattingSettings.colorZones.scaleLabelDisplay.value,
+            ['off', 'min', 'max', 'both'],
+            'both'
+        );
+    }
+
+    private getComparisonPosition(): string {
+        return this.normalizeEnumString(
+            this.formattingSettings.targetSettings.comparisonPosition.value,
+            ['top', 'left', 'right', 'bottom'],
+            'bottom'
+        );
+    }
+
+    private normalizeEnumString(rawValue: unknown, orderedValues: string[], fallback: string): string {
+        if (typeof rawValue === 'string') {
+            return orderedValues.includes(rawValue) ? rawValue : fallback;
+        }
+
+        if (typeof rawValue === 'number' && Number.isInteger(rawValue)) {
+            return orderedValues[rawValue] ?? fallback;
+        }
+
+        if (rawValue && typeof rawValue === 'object' && 'value' in (rawValue as any)) {
+            return this.normalizeEnumString((rawValue as any).value, orderedValues, fallback);
+        }
+
+        return fallback;
+    }
+
+    private getComparisonMetrics(data: GaugeData): { lineCount: number; maxLineWidth: number } {
+        if (this.isSecondaryTextHidden()) {
+            return { lineCount: 0, maxLineWidth: 0 };
+        }
+
+        if (!this.formattingSettings.targetSettings.showComparison.value) {
+            return { lineCount: 0, maxLineWidth: 0 };
+        }
+
+        const comparisonDisplay = this.formattingSettings.targetSettings.comparisonDisplay.value.value as string;
+        if (comparisonDisplay === 'off') {
+            return { lineCount: 0, maxLineWidth: 0 };
+        }
+
+        const effectiveTarget = this.getEffectiveTargetValue(data);
+        if (effectiveTarget === null) {
+            return { lineCount: 0, maxLineWidth: 0 };
+        }
+
+        const delta = data.value - effectiveTarget;
+        const deltaPercent = effectiveTarget !== 0 ? (delta / effectiveTarget) : null;
+        const lines = this.getComparisonLines(delta, deltaPercent, comparisonDisplay);
+        const fontSize = this.formattingSettings.targetSettings.comparisonFontSize.value;
+        const maxLineWidth = lines.reduce((maxWidth, line) => Math.max(maxWidth, this.getEstimatedTextWidth(line, fontSize)), 0);
+
+        return { lineCount: lines.length, maxLineWidth };
+    }
+
+    private getScaleLabelWidth(data: GaugeData): number {
+        const thresholdFontSize = this.getEffectiveLabelFontSize(this.formattingSettings.colorZones.thresholdFontSize.value);
+        const labels: string[] = [];
+
+        if (this.shouldShowScaleLabel('min')) {
+            labels.push(this.formatThresholdValue(data.minimum));
+        }
+
+        if (this.shouldShowScaleLabel('max')) {
+            labels.push(this.formatThresholdValue(data.maximum));
+        }
+
+        return labels.reduce((maxWidth, label) => Math.max(maxWidth, this.getEstimatedTextWidth(label, thresholdFontSize)), 0);
+    }
+
     private truncateThresholdLabel(value: string, maxLength: number): string {
         if (maxLength <= 0 || value.length <= maxLength) {
             return value;
@@ -1539,6 +2014,46 @@ export class Visual implements IVisual {
         const places = (decimalPlaces !== undefined && decimalPlaces !== null) ? decimalPlaces : 0;
         const formatString = `,.${places}f`;
         return d3.format(formatString)(value);
+    }
+
+    private getThresholdBoundaryValues(data: GaugeData): number[] {
+        const settings = this.formattingSettings.colorZones;
+        const thresholdMode = settings.thresholdMode.value.value as string;
+
+        let boundaries: number[];
+        if (thresholdMode === 'absolute'
+            && data.threshold1 !== null
+            && data.threshold2 !== null
+            && data.threshold3 !== null
+            && data.threshold4 !== null) {
+            boundaries = [data.threshold1, data.threshold2, data.threshold3, data.threshold4];
+        } else {
+            const range = data.maximum - data.minimum;
+            boundaries = [
+                data.minimum + (range * settings.threshold1.value / 100),
+                data.minimum + (range * settings.threshold2.value / 100),
+                data.minimum + (range * settings.threshold3.value / 100),
+                data.minimum + (range * settings.threshold4.value / 100)
+            ];
+        }
+
+        return boundaries
+            .filter((value) => Number.isFinite(value))
+            .sort((left, right) => left - right);
+    }
+
+    private getEffectiveTargetValue(data: GaugeData): number | null {
+        const nextThreshold = this.getThresholdBoundaryValues(data).find((boundary) => boundary > data.value);
+
+        if (nextThreshold !== undefined) {
+            return nextThreshold;
+        }
+
+        if (data.value < data.maximum) {
+            return data.maximum;
+        }
+
+        return data.target;
     }
 
     private getTooltipData(data: GaugeData): VisualTooltipDataItem[] {
@@ -1625,6 +2140,7 @@ export class Visual implements IVisual {
                         showThreshold2Label: this.formattingSettings.colorZones.showThreshold2Label.value,
                         showThreshold3Label: this.formattingSettings.colorZones.showThreshold3Label.value,
                         showThreshold4Label: this.formattingSettings.colorZones.showThreshold4Label.value,
+                        scaleLabelDisplay: this.formattingSettings.colorZones.scaleLabelDisplay.value,
                         thresholdMaxLabelLength: this.formattingSettings.colorZones.thresholdMaxLabelLength.value,
                         thresholdLineStyle: this.formattingSettings.colorZones.thresholdLineStyle.value,
                         thresholdFontSize: this.formattingSettings.colorZones.thresholdFontSize.value,
@@ -1645,8 +2161,53 @@ export class Visual implements IVisual {
                         targetColor: this.formattingSettings.targetSettings.targetColor.value,
                         showComparison: this.formattingSettings.targetSettings.showComparison.value,
                         comparisonDisplay: this.formattingSettings.targetSettings.comparisonDisplay.value,
+                        comparisonPosition: this.formattingSettings.targetSettings.comparisonPosition.value,
                         comparisonPositiveColor: this.formattingSettings.targetSettings.comparisonPositiveColor.value,
-                        comparisonNegativeColor: this.formattingSettings.targetSettings.comparisonNegativeColor.value
+                        comparisonNegativeColor: this.formattingSettings.targetSettings.comparisonNegativeColor.value,
+                        comparisonFontSize: this.formattingSettings.targetSettings.comparisonFontSize.value,
+                        comparisonFontFamily: this.formattingSettings.targetSettings.comparisonFontFamily.value,
+                        comparisonBold: this.formattingSettings.targetSettings.comparisonBold.value,
+                        comparisonItalic: this.formattingSettings.targetSettings.comparisonItalic.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "uxAccessibility":
+                instances.push({
+                    objectName: "uxAccessibility",
+                    properties: {
+                        compactMode: this.formattingSettings.uxAccessibility.compactMode.value,
+                        hideSecondaryText: this.formattingSettings.uxAccessibility.hideSecondaryText.value,
+                        disableAnimations: this.formattingSettings.uxAccessibility.disableAnimations.value,
+                        minLabelFontSize: this.formattingSettings.uxAccessibility.minLabelFontSize.value,
+                        focusRingColor: this.formattingSettings.uxAccessibility.focusRingColor.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "analyticsSettings":
+                instances.push({
+                    objectName: "analyticsSettings",
+                    properties: {
+                        showTrendIndicator: this.formattingSettings.analyticsSettings.showTrendIndicator.value,
+                        trendDisplay: this.formattingSettings.analyticsSettings.trendDisplay.value,
+                        trendPosition: this.formattingSettings.analyticsSettings.trendPosition.value,
+                        trendPositiveColor: this.formattingSettings.analyticsSettings.trendPositiveColor.value,
+                        trendNegativeColor: this.formattingSettings.analyticsSettings.trendNegativeColor.value,
+                        trendNeutralColor: this.formattingSettings.analyticsSettings.trendNeutralColor.value,
+                        trendFontSize: this.formattingSettings.analyticsSettings.trendFontSize.value,
+                        trendFontFamily: this.formattingSettings.analyticsSettings.trendFontFamily.value,
+                        trendBold: this.formattingSettings.analyticsSettings.trendBold.value,
+                        trendItalic: this.formattingSettings.analyticsSettings.trendItalic.value,
+                        showTargetBands: this.formattingSettings.analyticsSettings.showTargetBands.value,
+                        targetBandTolerancePercent: this.formattingSettings.analyticsSettings.targetBandTolerancePercent.value,
+                        showTargetBandLabel: this.formattingSettings.analyticsSettings.showTargetBandLabel.value,
+                        belowTargetColor: this.formattingSettings.analyticsSettings.belowTargetColor.value,
+                        nearTargetColor: this.formattingSettings.analyticsSettings.nearTargetColor.value,
+                        aboveTargetColor: this.formattingSettings.analyticsSettings.aboveTargetColor.value,
+                        belowTargetLabel: this.formattingSettings.analyticsSettings.belowTargetLabel.value,
+                        nearTargetLabel: this.formattingSettings.analyticsSettings.nearTargetLabel.value,
+                        aboveTargetLabel: this.formattingSettings.analyticsSettings.aboveTargetLabel.value
                     },
                     selector: undefined as any
                 });

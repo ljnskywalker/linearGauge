@@ -5,6 +5,8 @@
     width: auto;
     height: auto;
     overflow: visible;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
     
     .container {
         .color-zones {
@@ -50,9 +52,22 @@
 }
 
 // Accessibility improvements
-.linearGauge:focus {
-    outline: 2px solid #0078d4;
+.linearGauge:focus,
+.linearGauge.keyboard-focus {
+    outline-style: solid;
+    outline-width: 2px;
+    outline-color: #005a9e;
     outline-offset: 2px;
+}
+
+.linearGauge.no-motion {
+    .container {
+        .color-zones rect,
+        .fill-bar,
+        .target-marker polygon {
+            transition: none !important;
+        }
+    }
 }
 
 // High contrast mode support

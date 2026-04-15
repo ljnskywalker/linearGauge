@@ -49,6 +49,11 @@
             "displayName": "Tooltip Value",
             "name": "tooltip",
             "kind": "Measure"
+        },
+        {
+            "displayName": "Previous Value",
+            "name": "previousValue",
+            "kind": "Measure"
         }
     ],
     "objects": {
@@ -57,173 +62,60 @@
                 "orientation": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "horizontal",
-                                "displayName": "Horizontal"
-                            },
-                            {
-                                "value": "vertical",
-                                "displayName": "Vertical"
-                            }
+                            { "value": "horizontal", "displayName": "Horizontal" },
+                            { "value": "vertical", "displayName": "Vertical" }
                         ]
                     }
                 },
-                "showCategoryLabel": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "animationDuration": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
+                "showCategoryLabel": { "type": { "bool": true } },
+                "animationDuration": { "type": { "numeric": true } },
                 "layout": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "horizontal",
-                                "displayName": "Horizontal Row"
-                            }
+                            { "value": "horizontal", "displayName": "Horizontal Row" }
                         ]
                     }
                 },
-                "gaugeWidth": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "gaugePadding": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "fillThicknessFactor": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "useStaticValueColor": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "staticValueColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                }
+                "gaugeWidth": { "type": { "numeric": true } },
+                "gaugePadding": { "type": { "numeric": true } },
+                "fillThicknessFactor": { "type": { "numeric": true } },
+                "useStaticValueColor": { "type": { "bool": true } },
+                "staticValueColor": { "type": { "fill": { "solid": { "color": true } } } }
             }
         },
         "valueFormatting": {
             "properties": {
-                "showLabels": {
-                    "type": {
-                        "bool": true
-                    }
-                },
+                "showLabels": { "type": { "bool": true } },
                 "valueLabelPosition": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "left",
-                                "displayName": "Left"
-                            },
-                            {
-                                "value": "right",
-                                "displayName": "Right"
-                            },
-                            {
-                                "value": "top-center",
-                                "displayName": "Middle Above Gauge"
-                            }
+                            { "value": "left", "displayName": "Left" },
+                            { "value": "right", "displayName": "Right" },
+                            { "value": "top-center", "displayName": "Middle Above Gauge" }
                         ]
                     }
                 },
                 "valueFormat": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "auto",
-                                "displayName": "Auto"
-                            },
-                            {
-                                "value": "number",
-                                "displayName": "Number"
-                            },
-                            {
-                                "value": "percent",
-                                "displayName": "Percent"
-                            },
-                            {
-                                "value": "currency",
-                                "displayName": "Currency"
-                            },
-                            {
-                                "value": "compact",
-                                "displayName": "Compact"
-                            },
-                            {
-                                "value": "decimal",
-                                "displayName": "Decimal (Legacy)"
-                            },
-                            {
-                                "value": "percentage",
-                                "displayName": "Percentage (Legacy)"
-                            }
+                            { "value": "auto", "displayName": "Auto" },
+                            { "value": "number", "displayName": "Number" },
+                            { "value": "percent", "displayName": "Percent" },
+                            { "value": "currency", "displayName": "Currency" },
+                            { "value": "compact", "displayName": "Compact" },
+                            { "value": "decimal", "displayName": "Decimal (Legacy)" },
+                            { "value": "percentage", "displayName": "Percentage (Legacy)" }
                         ]
                     }
                 },
-                "valueDecimalPlaces": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "valuePrefix": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "valueSuffix": {
-                    "type": {
-                        "text": true
-                    }
-                },
-                "valueFontSize": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "valueFontFamily": {
-                    "type": {
-                        "formatting": {
-                            "fontFamily": true
-                        }
-                    }
-                },
-                "valueLabelColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "valueBold": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "valueItalic": {
-                    "type": {
-                        "bool": true
-                    }
-                }
+                "valueDecimalPlaces": { "type": { "numeric": true } },
+                "valuePrefix": { "type": { "text": true } },
+                "valueSuffix": { "type": { "text": true } },
+                "valueFontSize": { "type": { "numeric": true } },
+                "valueFontFamily": { "type": { "formatting": { "fontFamily": true } } },
+                "valueLabelColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "valueBold": { "type": { "bool": true } },
+                "valueItalic": { "type": { "bool": true } }
             }
         },
         "colorZones": {
@@ -231,278 +123,151 @@
                 "thresholdMode": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "percentage",
-                                "displayName": "Percentage"
-                            },
-                            {
-                                "value": "absolute",
-                                "displayName": "Absolute Values"
-                            }
+                            { "value": "percentage", "displayName": "Percentage" },
+                            { "value": "absolute", "displayName": "Absolute Values" }
                         ]
                     }
                 },
-                "threshold1": {
+                "threshold1": { "type": { "numeric": true } },
+                "threshold2": { "type": { "numeric": true } },
+                "threshold3": { "type": { "numeric": true } },
+                "threshold4": { "type": { "numeric": true } },
+                "redColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "yellowColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "greenColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "lightBlueColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "showThresholdLabels": { "type": { "bool": true } },
+                "showThreshold1Label": { "type": { "bool": true } },
+                "showThreshold2Label": { "type": { "bool": true } },
+                "showThreshold3Label": { "type": { "bool": true } },
+                "showThreshold4Label": { "type": { "bool": true } },
+                "scaleLabelDisplay": {
                     "type": {
-                        "numeric": true
+                        "enumeration": [
+                            { "value": "off", "displayName": "Off" },
+                            { "value": "min", "displayName": "Min Only" },
+                            { "value": "max", "displayName": "Max Only" },
+                            { "value": "both", "displayName": "Both" }
+                        ]
                     }
                 },
-                "threshold2": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "threshold3": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "threshold4": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "redColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "yellowColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "greenColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "lightBlueColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "showThresholdLabels": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "showThreshold1Label": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "showThreshold2Label": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "showThreshold3Label": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "showThreshold4Label": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "thresholdMaxLabelLength": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
+                "thresholdMaxLabelLength": { "type": { "numeric": true } },
                 "thresholdLineStyle": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "solid",
-                                "displayName": "Solid"
-                            },
-                            {
-                                "value": "dashed",
-                                "displayName": "Dashed"
-                            },
-                            {
-                                "value": "dotted",
-                                "displayName": "Dotted"
-                            }
+                            { "value": "solid", "displayName": "Solid" },
+                            { "value": "dashed", "displayName": "Dashed" },
+                            { "value": "dotted", "displayName": "Dotted" }
                         ]
                     }
                 },
-                "thresholdFontSize": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "thresholdFontFamily": {
-                    "type": {
-                        "formatting": {
-                            "fontFamily": true
-                        }
-                    }
-                },
-                "thresholdDecimalPlaces": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
-                "thresholdLabelColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "thresholdBold": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "thresholdItalic": {
-                    "type": {
-                        "bool": true
-                    }
-                }
+                "thresholdFontSize": { "type": { "numeric": true } },
+                "thresholdFontFamily": { "type": { "formatting": { "fontFamily": true } } },
+                "thresholdDecimalPlaces": { "type": { "numeric": true } },
+                "thresholdLabelColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "thresholdBold": { "type": { "bool": true } },
+                "thresholdItalic": { "type": { "bool": true } }
             }
         },
         "targetSettings": {
             "properties": {
-                "showTarget": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "targetColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "showComparison": {
-                    "type": {
-                        "bool": true
-                    }
-                },
+                "showTarget": { "type": { "bool": true } },
+                "targetColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "showComparison": { "type": { "bool": true } },
                 "comparisonDisplay": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "off",
-                                "displayName": "Off"
-                            },
-                            {
-                                "value": "absolute",
-                                "displayName": "Absolute Delta"
-                            },
-                            {
-                                "value": "percent",
-                                "displayName": "Percent Delta"
-                            },
-                            {
-                                "value": "both",
-                                "displayName": "Both"
-                            }
+                            { "value": "off", "displayName": "Off" },
+                            { "value": "absolute", "displayName": "Absolute Delta" },
+                            { "value": "percent", "displayName": "Percent Delta" },
+                            { "value": "both", "displayName": "Both" }
                         ]
                     }
                 },
-                "comparisonPositiveColor": {
+                "comparisonPosition": {
                     "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
+                        "enumeration": [
+                            { "value": "below", "displayName": "Below Gauge" },
+                            { "value": "above", "displayName": "Above Gauge" },
+                            { "value": "right", "displayName": "Right of Value" }
+                        ]
                     }
                 },
-                "comparisonNegativeColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                }
+                "comparisonPositiveColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "comparisonNegativeColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "comparisonFontSize": { "type": { "numeric": true } },
+                "comparisonFontFamily": { "type": { "formatting": { "fontFamily": true } } },
+                "comparisonBold": { "type": { "bool": true } },
+                "comparisonItalic": { "type": { "bool": true } }
             }
         },
         "categoryLayout": {
             "properties": {
-                "categoryFontSize": {
-                    "type": {
-                        "numeric": true
-                    }
-                },
+                "categoryFontSize": { "type": { "numeric": true } },
                 "categoryPosition": {
                     "type": {
                         "enumeration": [
-                            {
-                                "value": "top-left",
-                                "displayName": "Top Left"
-                            },
-                            {
-                                "value": "top-center",
-                                "displayName": "Top Center"
-                            },
-                            {
-                                "value": "top-right",
-                                "displayName": "Top Right"
-                            },
-                            {
-                                "value": "bottom-center",
-                                "displayName": "Bottom Center"
-                            },
-                            {
-                                "value": "bottom-angled-45",
-                                "displayName": "Bottom Angled 45°"
-                            },
-                            {
-                                "value": "left",
-                                "displayName": "Left Side"
-                            }
+                            { "value": "top-left", "displayName": "Top Left" },
+                            { "value": "top-center", "displayName": "Top Center" },
+                            { "value": "top-right", "displayName": "Top Right" },
+                            { "value": "bottom-center", "displayName": "Bottom Center" },
+                            { "value": "bottom-angled-45", "displayName": "Bottom Angled 45\u00b0" },
+                            { "value": "left", "displayName": "Left Side" }
                         ]
                     }
                 },
-                "categoryTextColor": {
+                "categoryTextColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "categoryPadding": { "type": { "numeric": true } },
+                "categoryBold": { "type": { "bool": true } }
+            }
+        },
+        "uxAccessibility": {
+            "properties": {
+                "compactMode": { "type": { "bool": true } },
+                "hideSecondaryText": { "type": { "bool": true } },
+                "disableAnimations": { "type": { "bool": true } },
+                "minLabelFontSize": { "type": { "numeric": true } },
+                "focusRingColor": { "type": { "fill": { "solid": { "color": true } } } }
+            }
+        },
+        "analyticsSettings": {
+            "properties": {
+                "showTrendIndicator": { "type": { "bool": true } },
+                "trendDisplay": {
                     "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
+                        "enumeration": [
+                            { "value": "delta", "displayName": "Delta" },
+                            { "value": "percent", "displayName": "Percent" },
+                            { "value": "both", "displayName": "Both" }
+                        ]
                     }
                 },
-                "categoryPadding": {
+                "trendPosition": {
                     "type": {
-                        "numeric": true
+                        "enumeration": [
+                            { "value": "top", "displayName": "Top" },
+                            { "value": "right", "displayName": "Right" },
+                            { "value": "bottom", "displayName": "Bottom" },
+                            { "value": "left", "displayName": "Left" }
+                        ]
                     }
                 },
-                "categoryBold": {
-                    "type": {
-                        "bool": true
-                    }
-                }
+                "trendPositiveColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "trendNegativeColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "trendNeutralColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "trendFontSize": { "type": { "numeric": true } },
+                "trendFontFamily": { "type": { "formatting": { "fontFamily": true } } },
+                "trendBold": { "type": { "bool": true } },
+                "trendItalic": { "type": { "bool": true } },
+                "showTargetBands": { "type": { "bool": true } },
+                "targetBandTolerancePercent": { "type": { "numeric": true } },
+                "showTargetBandLabel": { "type": { "bool": true } },
+                "belowTargetColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "nearTargetColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "aboveTargetColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "belowTargetLabel": { "type": { "text": true } },
+                "nearTargetLabel": { "type": { "text": true } },
+                "aboveTargetLabel": { "type": { "text": true } }
             }
         }
     },
@@ -510,93 +275,35 @@
         {
             "conditions": [
                 {
-                    "value": {
-                        "max": 1
-                    },
-                    "minimum": {
-                        "max": 1
-                    },
-                    "maximum": {
-                        "max": 1
-                    },
-                    "target": {
-                        "max": 1
-                    },
-                    "threshold1": {
-                        "max": 1
-                    },
-                    "threshold2": {
-                        "max": 1
-                    },
-                    "threshold3": {
-                        "max": 1
-                    },
-                    "threshold4": {
-                        "max": 1
-                    },
-                    "tooltip": {
-                        "max": 20
-                    }
+                    "value": { "max": 1 },
+                    "minimum": { "max": 1 },
+                    "maximum": { "max": 1 },
+                    "target": { "max": 1 },
+                    "threshold1": { "max": 1 },
+                    "threshold2": { "max": 1 },
+                    "threshold3": { "max": 1 },
+                    "threshold4": { "max": 1 },
+                    "previousValue": { "max": 1 },
+                    "tooltip": { "max": 20 }
                 }
             ],
             "categorical": {
                 "categories": {
-                    "for": {
-                        "in": "category"
-                    },
-                    "dataReductionAlgorithm": {
-                        "top": {
-                            "count": 30000
-                        }
-                    }
+                    "for": { "in": "category" },
+                    "dataReductionAlgorithm": { "top": { "count": 30000 } }
                 },
                 "values": {
                     "select": [
-                        {
-                            "bind": {
-                                "to": "value"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "minimum"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "maximum"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "target"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "threshold1"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "threshold2"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "threshold3"
-                            }
-                        },
-                        {
-                            "bind": {
-                                "to": "threshold4"
-                            }
-                        },
-                        {
-                            "for": {
-                                "in": "tooltip"
-                            }
-                        }
+                        { "bind": { "to": "value" } },
+                        { "bind": { "to": "minimum" } },
+                        { "bind": { "to": "maximum" } },
+                        { "bind": { "to": "target" } },
+                        { "bind": { "to": "threshold1" } },
+                        { "bind": { "to": "threshold2" } },
+                        { "bind": { "to": "threshold3" } },
+                        { "bind": { "to": "threshold4" } },
+                        { "bind": { "to": "previousValue" } },
+                        { "for": { "in": "tooltip" } }
                     ]
                 }
             }
@@ -625,5 +332,3 @@
     },
     "privileges": []
 }
-
-
