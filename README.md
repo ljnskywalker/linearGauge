@@ -1,6 +1,54 @@
 # Linear Gauge (Power BI Custom Visual)
 
-Custom Power BI visual.
+The Linear Gauge visual is a compact KPI-style chart for tracking progress against targets across categories.
+It is designed for report pages where users need to quickly compare current performance, threshold zones,
+and goal attainment without the visual overhead of full chart scaffolding.
+
+This visual renders one gauge per category and supports both horizontal and vertical orientations, making it
+useful for dashboards, scorecards, and operational monitoring views.
+
+## What This Visual Is Good For
+
+- Monitoring progress toward targets for many entities (schools, regions, teams, products, etc.)
+- Showing performance state with clear threshold color bands
+- Comparing actual vs target with optional delta text
+- Highlighting trend direction using optional previous-period values
+- Preserving readability in dense layouts with accessibility-focused controls
+
+## Key Capabilities
+
+- Multiple gauges in a single visual, one per category
+- Configurable color zones using percentage or absolute threshold modes
+- Target markers and comparison display modes (absolute, percent, both)
+- Value formatting presets and label styling controls
+- Trend indicator support using optional Previous Value input
+- Target bands with deterministic Below/Near/Above tolerance logic
+- Keyboard focus support and contrast-aware behavior
+
+## Data Roles
+
+Use these fields in Power BI to drive the visual:
+
+- **Category**: grouping field used to create one gauge per item
+- **Value**: primary metric shown as the filled gauge value
+- **Minimum**: lower bound of the gauge scale
+- **Maximum**: upper bound of the gauge scale
+- **Target**: optional goal marker for comparison
+- **Threshold 1-4**: optional custom breakpoints for threshold zones
+- **Previous Value**: optional prior-period value for trend analysis
+- **Tooltip Value**: optional fields shown in tooltip on hover
+
+## Formatting Areas
+
+The format pane is organized for workflow-based editing:
+
+- **Core Layout**
+- **Category Labels**
+- **Value Labels**
+- **Scale & Thresholds**
+- **Target & Comparison**
+- **Analytics**
+- **Accessibility & Density**
 
 ## Build Package (.pbiviz)
 

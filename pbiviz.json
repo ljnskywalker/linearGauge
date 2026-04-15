@@ -4,7 +4,7 @@
         "displayName": "Linear Gauge",
         "guid": "linearGauge",
         "visualClassName": "Visual",
-        "version": "0.4.2.1",
+        "version": "0.4.2.2",
         "description": "A comprehensive linear gauge visualization with color zones, target markers, and comparison indicators. Supports both horizontal and vertical orientations.",
         "supportUrl": "https://github.com/ljnskywalker/linear-gauge",
         "gitHubUrl": "https://github.com/ljnskywalker/linear-gauge"
@@ -24,5 +24,5 @@
     "stringResources": [
         "stringResources/en-US/resources.resjson"
     ],
-    "version": "0.4.2.1"
+    "version": "0.4.2.2"
 }
