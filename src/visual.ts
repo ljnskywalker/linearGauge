@@ -201,14 +201,14 @@ export class Visual implements IVisual {
 
             const dataView = options.dataViews?.[0];
             if (!dataView) {
-                this.renderLandingPage(width, height);
+                this.renderNoDataState(width, height);
                 this.host.eventService?.renderingFinished(options);
                 return;
             }
 
             const gaugeDataArray = this.extractData(dataView);
             if (!gaugeDataArray || gaugeDataArray.length === 0) {
-                this.renderLandingPage(width, height);
+                this.renderNoDataState(width, height);
                 this.host.eventService?.renderingFinished(options);
                 return;
             }
@@ -1570,6 +1570,16 @@ export class Visual implements IVisual {
             .text('Add data to get started');
         
         // Set scroll container to hidden since landing page fits in viewport
+        this.scrollContainer.style.overflowX = 'hidden';
+        this.scrollContainer.style.overflowY = 'hidden';
+    }
+
+    private renderNoDataState(width: number, height: number): void {
+        this.clear();
+        this.svg
+            .attr('width', Math.max(1, width))
+            .attr('height', Math.max(1, height))
+            .attr('aria-label', 'Linear Gauge visual with no data.');
         this.scrollContainer.style.overflowX = 'hidden';
         this.scrollContainer.style.overflowY = 'hidden';
     }

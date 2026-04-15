@@ -325,7 +325,7 @@
             "tooltip"
         ]
     },
-    "supportsLandingPage": true,
+    "supportsLandingPage": false,
     "supportsKeyboardFocus": true,
     "sorting": {
         "default": {}
