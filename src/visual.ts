@@ -582,7 +582,7 @@ export class Visual implements IVisual {
             }
         });
         
-        // Render threshold labels if enabled
+        // Render threshold marker lines and optional labels
         if (settings.showThresholdLabels.value) {
             const categoryPosition = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
             const thresholdOnRight = isVertical && categoryPosition === 'left';
@@ -591,13 +591,36 @@ export class Visual implements IVisual {
             const thresholdLabelColor = settings.thresholdLabelColor.value.value;
             const thresholdBold = settings.thresholdBold.value;
             const thresholdItalic = settings.thresholdItalic.value;
+            const lineStyle = settings.thresholdLineStyle.value.value as string;
+            const lineDashArray = this.getThresholdLineDashArray(lineStyle);
+            const maxLabelLength = Math.max(1, Math.floor(settings.thresholdMaxLabelLength.value));
             
             // Show all 4 threshold boundaries
             const thresholds = [
-                { value: threshold1, label: this.formatThresholdValue(threshold1), position: 0 },
-                { value: threshold2, label: this.formatThresholdValue(threshold2), position: 0 },
-                { value: threshold3, label: this.formatThresholdValue(threshold3), position: 0 },
-                { value: threshold4, label: this.formatThresholdValue(threshold4), position: 0 }
+                {
+                    value: threshold1,
+                    label: this.truncateThresholdLabel(this.formatThresholdValue(threshold1), maxLabelLength),
+                    position: 0,
+                    showLabel: settings.showThreshold1Label.value
+                },
+                {
+                    value: threshold2,
+                    label: this.truncateThresholdLabel(this.formatThresholdValue(threshold2), maxLabelLength),
+                    position: 0,
+                    showLabel: settings.showThreshold2Label.value
+                },
+                {
+                    value: threshold3,
+                    label: this.truncateThresholdLabel(this.formatThresholdValue(threshold3), maxLabelLength),
+                    position: 0,
+                    showLabel: settings.showThreshold3Label.value
+                },
+                {
+                    value: threshold4,
+                    label: this.truncateThresholdLabel(this.formatThresholdValue(threshold4), maxLabelLength),
+                    position: 0,
+                    showLabel: settings.showThreshold4Label.value
+                }
             ];
             
             // Calculate positions and detect overlaps
@@ -665,20 +688,23 @@ export class Visual implements IVisual {
                         .attr('y1', height - threshold.position)
                         .attr('y2', height - threshold.position)
                         .attr('stroke', this.getColor('#777'))
-                        .attr('stroke-width', 1);
+                        .attr('stroke-width', 1)
+                        .attr('stroke-dasharray', lineDashArray);
 
                     // Vertical: labels on opposite side when left category labels are used
-                    thresholdLabelsGroup.append('text')
-                        .attr('x', thresholdOnRight ? width + 8 : -8)
-                        .attr('y', height - pos + 4)
-                        .attr('text-anchor', thresholdOnRight ? 'start' : 'end')
-                        .attr('font-size', `${thresholdFontSize}px`)
-                        .attr('font-family', thresholdFontFamily)
-                        .attr('font-weight', thresholdBold ? 'bold' : 'normal')
-                        .attr('font-style', thresholdItalic ? 'italic' : 'normal')
-                        .attr('fill', thresholdLabelColor)
-                        .attr('opacity', 0.8)
-                        .text(threshold.label);
+                    if (threshold.showLabel) {
+                        thresholdLabelsGroup.append('text')
+                            .attr('x', thresholdOnRight ? width + 8 : -8)
+                            .attr('y', height - pos + 4)
+                            .attr('text-anchor', thresholdOnRight ? 'start' : 'end')
+                            .attr('font-size', `${thresholdFontSize}px`)
+                            .attr('font-family', thresholdFontFamily)
+                            .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                            .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                            .attr('fill', thresholdLabelColor)
+                            .attr('opacity', 0.8)
+                            .text(threshold.label);
+                    }
                 } else {
                     thresholdLabelsGroup.append('line')
                         .attr('x1', threshold.position)
@@ -686,20 +712,23 @@ export class Visual implements IVisual {
                         .attr('y1', 0)
                         .attr('y2', -6)
                         .attr('stroke', this.getColor('#777'))
-                        .attr('stroke-width', 1);
+                        .attr('stroke-width', 1)
+                        .attr('stroke-dasharray', lineDashArray);
 
                     // Horizontal: labels above at threshold positions
-                    thresholdLabelsGroup.append('text')
-                        .attr('x', pos)
-                        .attr('y', -8)
-                        .attr('text-anchor', 'middle')
-                        .attr('font-size', `${thresholdFontSize}px`)
-                        .attr('font-family', thresholdFontFamily)
-                        .attr('font-weight', thresholdBold ? 'bold' : 'normal')
-                        .attr('font-style', thresholdItalic ? 'italic' : 'normal')
-                        .attr('fill', thresholdLabelColor)
-                        .attr('opacity', 0.8)
-                        .text(threshold.label);
+                    if (threshold.showLabel) {
+                        thresholdLabelsGroup.append('text')
+                            .attr('x', pos)
+                            .attr('y', -8)
+                            .attr('text-anchor', 'middle')
+                            .attr('font-size', `${thresholdFontSize}px`)
+                            .attr('font-family', thresholdFontFamily)
+                            .attr('font-weight', thresholdBold ? 'bold' : 'normal')
+                            .attr('font-style', thresholdItalic ? 'italic' : 'normal')
+                            .attr('fill', thresholdLabelColor)
+                            .attr('opacity', 0.8)
+                            .text(threshold.label);
+                    }
                 }
             });
         }
@@ -1135,13 +1164,24 @@ export class Visual implements IVisual {
     private renderComparison(data: GaugeData, width: number, height: number, 
                             isVertical: boolean, margin: any) {
         if (data.target === null) return;
+
+        const comparisonDisplay = this.formattingSettings.targetSettings.comparisonDisplay.value.value as string;
+        if (comparisonDisplay === 'off') return;
         
         const delta = data.value - data.target;
-        const format = d3.format('+,.0f');
-        const percentFormat = d3.format('+.1%');
-        const deltaPercent = delta / data.target;
+        const hasValidTargetForPercent = data.target !== 0;
+        const deltaPercent = hasValidTargetForPercent ? (delta / data.target) : null;
+        const absoluteText = this.formatComparisonAbsolute(delta);
+        const percentText = deltaPercent !== null ? this.formatComparisonPercent(deltaPercent) : 'N/A';
+        const comparisonText = comparisonDisplay === 'absolute'
+            ? absoluteText
+            : comparisonDisplay === 'percent'
+                ? percentText
+                : `${absoluteText} (${percentText})`;
         
-        const color = delta >= 0 ? '#10d61a' : '#d6101a';  // Green if positive, red if negative
+        const color = delta >= 0
+            ? this.formattingSettings.targetSettings.comparisonPositiveColor.value.value
+            : this.formattingSettings.targetSettings.comparisonNegativeColor.value.value;
         
         const comparisonGroup = this.container.append('g').classed('comparison', true);
         
@@ -1153,7 +1193,7 @@ export class Visual implements IVisual {
                 .attr('font-size', '12px')
                 .attr('font-weight', 'bold')
                 .attr('fill', color)
-                .text(`${format(delta)} (${percentFormat(deltaPercent)})`);
+                .text(comparisonText);
         } else {
             comparisonGroup.append('text')
                 .attr('x', width + 10)
@@ -1162,7 +1202,7 @@ export class Visual implements IVisual {
                 .attr('font-size', '12px')
                 .attr('font-weight', 'bold')
                 .attr('fill', color)
-                .text(`${format(delta)} (${percentFormat(deltaPercent)})`);
+                .text(comparisonText);
         }
     }
 
@@ -1400,25 +1440,97 @@ export class Visual implements IVisual {
     }
 
     private formatValue(value: number): string {
-        const formatType = this.formattingSettings.valueFormatting.valueFormat.value.value as string;
+        const formatType = this.getNormalizedValueFormatPreset();
         const decimalPlaces = this.formattingSettings.valueFormatting.valueDecimalPlaces.value;
         const prefix = this.formattingSettings.valueFormatting.valuePrefix?.value ?? "";
         const suffix = this.formattingSettings.valueFormatting.valueSuffix?.value ?? "";
-        
+        const locale = this.getLocale();
+
+        const resolvedPreset = formatType === 'auto'
+            ? (Math.abs(value) >= 1000 ? 'compact' : 'number')
+            : formatType;
+
         let formattedValue: string;
-        
-        if (formatType === 'percentage') {
-            // For percentage, divide by 100 and format with decimal places
-            const percentValue = value / 100;
-            const formatString = `.${decimalPlaces}%`;
-            formattedValue = d3.format(formatString)(percentValue);
+        if (resolvedPreset === 'percent') {
+            const formatter = new Intl.NumberFormat(locale, {
+                style: 'percent',
+                minimumFractionDigits: decimalPlaces,
+                maximumFractionDigits: decimalPlaces
+            });
+            formattedValue = formatter.format(value / 100);
+        } else if (resolvedPreset === 'currency') {
+            const formatter = new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: decimalPlaces,
+                maximumFractionDigits: decimalPlaces
+            });
+            formattedValue = formatter.format(value);
+        } else if (resolvedPreset === 'compact') {
+            const formatter = new Intl.NumberFormat(locale, {
+                notation: 'compact',
+                compactDisplay: 'short',
+                minimumFractionDigits: decimalPlaces,
+                maximumFractionDigits: decimalPlaces
+            });
+            formattedValue = formatter.format(value);
         } else {
-            // For decimal, use thousands separator and decimal places
-            const formatString = decimalPlaces > 0 ? `,.${decimalPlaces}f` : ',.0f';
-            formattedValue = d3.format(formatString)(value);
+            const formatter = new Intl.NumberFormat(locale, {
+                minimumFractionDigits: decimalPlaces,
+                maximumFractionDigits: decimalPlaces
+            });
+            formattedValue = formatter.format(value);
         }
         
         return prefix + formattedValue + suffix;
+    }
+
+    private getNormalizedValueFormatPreset(): string {
+        const rawFormat = this.formattingSettings.valueFormatting.valueFormat.value.value as string;
+        if (rawFormat === 'decimal') return 'number';
+        if (rawFormat === 'percentage') return 'percent';
+        return rawFormat;
+    }
+
+    private getLocale(): string {
+        return (this.host as any)?.locale || navigator.language || 'en-US';
+    }
+
+    private formatComparisonAbsolute(delta: number): string {
+        const decimalPlaces = this.formattingSettings.valueFormatting.valueDecimalPlaces.value;
+        const format = new Intl.NumberFormat(this.getLocale(), {
+            minimumFractionDigits: decimalPlaces,
+            maximumFractionDigits: decimalPlaces,
+            signDisplay: 'always'
+        });
+        return format.format(delta);
+    }
+
+    private formatComparisonPercent(deltaPercent: number): string {
+        const decimalPlaces = this.formattingSettings.valueFormatting.valueDecimalPlaces.value;
+        const format = new Intl.NumberFormat(this.getLocale(), {
+            style: 'percent',
+            minimumFractionDigits: decimalPlaces,
+            maximumFractionDigits: decimalPlaces,
+            signDisplay: 'always'
+        });
+        return format.format(deltaPercent);
+    }
+
+    private truncateThresholdLabel(value: string, maxLength: number): string {
+        if (maxLength <= 0 || value.length <= maxLength) {
+            return value;
+        }
+        if (maxLength <= 3) {
+            return value.substring(0, maxLength);
+        }
+        return `${value.substring(0, maxLength - 3)}...`;
+    }
+
+    private getThresholdLineDashArray(lineStyle: string): string | null {
+        if (lineStyle === 'dashed') return '4,3';
+        if (lineStyle === 'dotted') return '1,3';
+        return null;
     }
 
     private formatThresholdValue(value: number): string {
@@ -1443,9 +1555,105 @@ export class Visual implements IVisual {
     }
     
     public enumerateObjectInstances(options: EnumerateVisualObjectInstancesOptions): powerbi.VisualObjectInstanceEnumeration {
-        // Format painter relies on this to serialize properties
-        // Since we use FormattingSettingsService, return empty to let Power BI handle default serialization
-        return [];
+        const instances: VisualObjectInstance[] = [];
+
+        switch (options.objectName) {
+            case "gaugeSettings":
+                instances.push({
+                    objectName: "gaugeSettings",
+                    properties: {
+                        orientation: this.formattingSettings.gaugeSettings.orientation.value,
+                        showCategoryLabel: this.formattingSettings.gaugeSettings.showCategoryLabel.value,
+                        animationDuration: this.formattingSettings.gaugeSettings.animationDuration.value,
+                        layout: this.formattingSettings.gaugeSettings.layout.value,
+                        gaugeWidth: this.formattingSettings.gaugeSettings.gaugeWidth.value,
+                        gaugePadding: this.formattingSettings.gaugeSettings.gaugePadding.value,
+                        fillThicknessFactor: this.formattingSettings.gaugeSettings.fillThicknessFactor.value,
+                        useStaticValueColor: this.formattingSettings.gaugeSettings.useStaticValueColor.value,
+                        staticValueColor: this.formattingSettings.gaugeSettings.staticValueColor.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "valueFormatting":
+                instances.push({
+                    objectName: "valueFormatting",
+                    properties: {
+                        showLabels: this.formattingSettings.valueFormatting.showLabels.value,
+                        valueLabelPosition: this.formattingSettings.valueFormatting.valueLabelPosition.value,
+                        valueFormat: this.formattingSettings.valueFormatting.valueFormat.value,
+                        valueDecimalPlaces: this.formattingSettings.valueFormatting.valueDecimalPlaces.value,
+                        valuePrefix: this.formattingSettings.valueFormatting.valuePrefix.value,
+                        valueSuffix: this.formattingSettings.valueFormatting.valueSuffix.value,
+                        valueFontSize: this.formattingSettings.valueFormatting.valueFontSize.value,
+                        valueFontFamily: this.formattingSettings.valueFormatting.valueFontFamily.value,
+                        valueLabelColor: this.formattingSettings.valueFormatting.valueLabelColor.value,
+                        valueBold: this.formattingSettings.valueFormatting.valueBold.value,
+                        valueItalic: this.formattingSettings.valueFormatting.valueItalic.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "categoryLayout":
+                instances.push({
+                    objectName: "categoryLayout",
+                    properties: {
+                        categoryFontSize: this.formattingSettings.categoryLayout.categoryFontSize.value,
+                        categoryPosition: this.formattingSettings.categoryLayout.categoryPosition.value,
+                        categoryTextColor: this.formattingSettings.categoryLayout.categoryTextColor.value,
+                        categoryPadding: this.formattingSettings.categoryLayout.categoryPadding.value,
+                        categoryBold: this.formattingSettings.categoryLayout.categoryBold.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "colorZones":
+                instances.push({
+                    objectName: "colorZones",
+                    properties: {
+                        thresholdMode: this.formattingSettings.colorZones.thresholdMode.value,
+                        threshold1: this.formattingSettings.colorZones.threshold1.value,
+                        threshold2: this.formattingSettings.colorZones.threshold2.value,
+                        threshold3: this.formattingSettings.colorZones.threshold3.value,
+                        threshold4: this.formattingSettings.colorZones.threshold4.value,
+                        redColor: this.formattingSettings.colorZones.redColor.value,
+                        yellowColor: this.formattingSettings.colorZones.yellowColor.value,
+                        greenColor: this.formattingSettings.colorZones.greenColor.value,
+                        lightBlueColor: this.formattingSettings.colorZones.lightBlueColor.value,
+                        showThresholdLabels: this.formattingSettings.colorZones.showThresholdLabels.value,
+                        showThreshold1Label: this.formattingSettings.colorZones.showThreshold1Label.value,
+                        showThreshold2Label: this.formattingSettings.colorZones.showThreshold2Label.value,
+                        showThreshold3Label: this.formattingSettings.colorZones.showThreshold3Label.value,
+                        showThreshold4Label: this.formattingSettings.colorZones.showThreshold4Label.value,
+                        thresholdMaxLabelLength: this.formattingSettings.colorZones.thresholdMaxLabelLength.value,
+                        thresholdLineStyle: this.formattingSettings.colorZones.thresholdLineStyle.value,
+                        thresholdFontSize: this.formattingSettings.colorZones.thresholdFontSize.value,
+                        thresholdFontFamily: this.formattingSettings.colorZones.thresholdFontFamily.value,
+                        thresholdDecimalPlaces: this.formattingSettings.colorZones.thresholdDecimalPlaces.value,
+                        thresholdLabelColor: this.formattingSettings.colorZones.thresholdLabelColor.value,
+                        thresholdBold: this.formattingSettings.colorZones.thresholdBold.value,
+                        thresholdItalic: this.formattingSettings.colorZones.thresholdItalic.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+            case "targetSettings":
+                instances.push({
+                    objectName: "targetSettings",
+                    properties: {
+                        showTarget: this.formattingSettings.targetSettings.showTarget.value,
+                        targetColor: this.formattingSettings.targetSettings.targetColor.value,
+                        showComparison: this.formattingSettings.targetSettings.showComparison.value,
+                        comparisonDisplay: this.formattingSettings.targetSettings.comparisonDisplay.value,
+                        comparisonPositiveColor: this.formattingSettings.targetSettings.comparisonPositiveColor.value,
+                        comparisonNegativeColor: this.formattingSettings.targetSettings.comparisonNegativeColor.value
+                    },
+                    selector: undefined as any
+                });
+                break;
+        }
+
+        return instances;
     }
 
     public destroy(): void {

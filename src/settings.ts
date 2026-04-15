@@ -182,6 +182,30 @@ class ColorZonesCard extends FormattingSettingsCard {
         value: true
     });
 
+    showThreshold1Label = new formattingSettings.ToggleSwitch({
+        name: "showThreshold1Label",
+        displayName: "Show Threshold 1 Label",
+        value: true
+    });
+
+    showThreshold2Label = new formattingSettings.ToggleSwitch({
+        name: "showThreshold2Label",
+        displayName: "Show Threshold 2 Label",
+        value: true
+    });
+
+    showThreshold3Label = new formattingSettings.ToggleSwitch({
+        name: "showThreshold3Label",
+        displayName: "Show Threshold 3 Label",
+        value: true
+    });
+
+    showThreshold4Label = new formattingSettings.ToggleSwitch({
+        name: "showThreshold4Label",
+        displayName: "Show Threshold 4 Label",
+        value: true
+    });
+
     thresholdFontSize = new formattingSettings.NumUpDown({
         name: "thresholdFontSize",
         displayName: "Threshold Font Size",
@@ -216,6 +240,23 @@ class ColorZonesCard extends FormattingSettingsCard {
         name: "thresholdItalic",
         displayName: "Threshold Label Italic",
         value: false
+    });
+
+    thresholdMaxLabelLength = new formattingSettings.NumUpDown({
+        name: "thresholdMaxLabelLength",
+        displayName: "Max Threshold Label Length",
+        value: 8
+    });
+
+    thresholdLineStyle = new formattingSettings.ItemDropdown({
+        name: "thresholdLineStyle",
+        displayName: "Threshold Line Style",
+        items: [
+            { value: "solid", displayName: "Solid" },
+            { value: "dashed", displayName: "Dashed" },
+            { value: "dotted", displayName: "Dotted" }
+        ],
+        value: { value: "solid", displayName: "Solid" }
     });
 
     name: string = "colorZones";
@@ -255,6 +296,12 @@ class ColorZonesCard extends FormattingSettingsCard {
         
         // Show threshold labels toggle and formatting
         slices.push(this.showThresholdLabels);
+        slices.push(this.showThreshold1Label);
+        slices.push(this.showThreshold2Label);
+        slices.push(this.showThreshold3Label);
+        slices.push(this.showThreshold4Label);
+        slices.push(this.thresholdMaxLabelLength);
+        slices.push(this.thresholdLineStyle);
         slices.push(this.thresholdFontSize);
         slices.push(this.thresholdFontFamily);
         slices.push(this.thresholdDecimalPlaces);
@@ -288,9 +335,40 @@ class TargetSettingsCard extends FormattingSettingsCard {
         value: false
     });
 
+    comparisonDisplay = new formattingSettings.ItemDropdown({
+        name: "comparisonDisplay",
+        displayName: "Comparison Display",
+        items: [
+            { value: "off", displayName: "Off" },
+            { value: "absolute", displayName: "Absolute Delta" },
+            { value: "percent", displayName: "Percent Delta" },
+            { value: "both", displayName: "Both" }
+        ],
+        value: { value: "both", displayName: "Both" }
+    });
+
+    comparisonPositiveColor = new formattingSettings.ColorPicker({
+        name: "comparisonPositiveColor",
+        displayName: "Positive Comparison Color",
+        value: { value: "#10d61a" }
+    });
+
+    comparisonNegativeColor = new formattingSettings.ColorPicker({
+        name: "comparisonNegativeColor",
+        displayName: "Negative Comparison Color",
+        value: { value: "#d6101a" }
+    });
+
     name: string = "targetSettings";
     displayName: string = "Target Settings";
-    slices: Array<FormattingSettingsSlice> = [this.showTarget, this.targetColor, this.showComparison];
+    slices: Array<FormattingSettingsSlice> = [
+        this.showTarget,
+        this.targetColor,
+        this.showComparison,
+        this.comparisonDisplay,
+        this.comparisonPositiveColor,
+        this.comparisonNegativeColor
+    ];
 }
 
 /**
@@ -369,12 +447,17 @@ class ValueFormattingCard extends FormattingSettingsCard {
 
     valueFormat = new formattingSettings.ItemDropdown({
         name: "valueFormat",
-        displayName: "Value Format",
+        displayName: "Value Format Preset",
         items: [
-            { value: "decimal", displayName: "Decimal" },
-            { value: "percentage", displayName: "Percentage" }
+            { value: "auto", displayName: "Auto" },
+            { value: "number", displayName: "Number" },
+            { value: "percent", displayName: "Percent" },
+            { value: "currency", displayName: "Currency" },
+            { value: "compact", displayName: "Compact" },
+            { value: "decimal", displayName: "Decimal (Legacy)" },
+            { value: "percentage", displayName: "Percentage (Legacy)" }
         ],
-        value: { value: "decimal", displayName: "Decimal" }
+        value: { value: "auto", displayName: "Auto" }
     });
 
     valueDecimalPlaces = new formattingSettings.NumUpDown({

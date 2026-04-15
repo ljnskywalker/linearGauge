@@ -148,12 +148,32 @@
                     "type": {
                         "enumeration": [
                             {
+                                "value": "auto",
+                                "displayName": "Auto"
+                            },
+                            {
+                                "value": "number",
+                                "displayName": "Number"
+                            },
+                            {
+                                "value": "percent",
+                                "displayName": "Percent"
+                            },
+                            {
+                                "value": "currency",
+                                "displayName": "Currency"
+                            },
+                            {
+                                "value": "compact",
+                                "displayName": "Compact"
+                            },
+                            {
                                 "value": "decimal",
-                                "displayName": "Decimal"
+                                "displayName": "Decimal (Legacy)"
                             },
                             {
                                 "value": "percentage",
-                                "displayName": "Percentage"
+                                "displayName": "Percentage (Legacy)"
                             }
                         ]
                     }
@@ -283,6 +303,49 @@
                         "bool": true
                     }
                 },
+                "showThreshold1Label": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "showThreshold2Label": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "showThreshold3Label": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "showThreshold4Label": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "thresholdMaxLabelLength": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "thresholdLineStyle": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "solid",
+                                "displayName": "Solid"
+                            },
+                            {
+                                "value": "dashed",
+                                "displayName": "Dashed"
+                            },
+                            {
+                                "value": "dotted",
+                                "displayName": "Dotted"
+                            }
+                        ]
+                    }
+                },
                 "thresholdFontSize": {
                     "type": {
                         "numeric": true
@@ -340,6 +403,46 @@
                 "showComparison": {
                     "type": {
                         "bool": true
+                    }
+                },
+                "comparisonDisplay": {
+                    "type": {
+                        "enumeration": [
+                            {
+                                "value": "off",
+                                "displayName": "Off"
+                            },
+                            {
+                                "value": "absolute",
+                                "displayName": "Absolute Delta"
+                            },
+                            {
+                                "value": "percent",
+                                "displayName": "Percent Delta"
+                            },
+                            {
+                                "value": "both",
+                                "displayName": "Both"
+                            }
+                        ]
+                    }
+                },
+                "comparisonPositiveColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "comparisonNegativeColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
                     }
                 }
             }
