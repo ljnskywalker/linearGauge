@@ -656,86 +656,58 @@ export class Visual implements IVisual {
                 {
                     value: threshold1,
                     label: this.truncateThresholdLabel(this.formatThresholdValue(threshold1), maxLabelLength),
-                    position: 0,
-                    showLabel: settings.showThreshold1Label.value
+                    position: scale(threshold1),
+                    showLabel: settings.showThreshold1Label.value,
+                    shouldRender: true
                 },
                 {
                     value: threshold2,
                     label: this.truncateThresholdLabel(this.formatThresholdValue(threshold2), maxLabelLength),
-                    position: 0,
-                    showLabel: settings.showThreshold2Label.value
+                    position: scale(threshold2),
+                    showLabel: settings.showThreshold2Label.value,
+                    shouldRender: true
                 },
                 {
                     value: threshold3,
                     label: this.truncateThresholdLabel(this.formatThresholdValue(threshold3), maxLabelLength),
-                    position: 0,
-                    showLabel: settings.showThreshold3Label.value
+                    position: scale(threshold3),
+                    showLabel: settings.showThreshold3Label.value,
+                    shouldRender: true
                 },
                 {
                     value: threshold4,
                     label: this.truncateThresholdLabel(this.formatThresholdValue(threshold4), maxLabelLength),
-                    position: 0,
-                    showLabel: settings.showThreshold4Label.value
+                    position: scale(threshold4),
+                    showLabel: settings.showThreshold4Label.value,
+                    shouldRender: true
                 }
             ];
             
-            // Calculate positions and detect overlaps
-            thresholds.forEach(threshold => {
-                threshold.position = scale(threshold.value);
-            });
+            // Detect overlaps and hide lower thresholds when they would collide
+            const minSpacing = thresholdFontSize * 1.8; // Minimum pixels between labels
             
-            // Minimum spacing between labels (in pixels)
-            const minSpacing = thresholdFontSize * 1.5;
-            const adjustedPositions: number[] = [];
-            
-            // For vertical orientation, check Y positions
-            if (isVertical) {
-                for (let i = 0; i < thresholds.length; i++) {
-                    let pos = thresholds[i].position;
+            for (let i = 0; i < thresholds.length - 1; i++) {
+                if (!thresholds[i].showLabel) continue;
+                
+                for (let j = i + 1; j < thresholds.length; j++) {
+                    if (!thresholds[j].showLabel) continue;
                     
-                    // Check against previous labels
-                    for (let j = 0; j < i; j++) {
-                        const prevPos = adjustedPositions[j];
-                        const distance = Math.abs((height - pos) - (height - prevPos));
-                        
-                        if (distance < minSpacing) {
-                            // Offset this label to avoid overlap
-                            if ((height - pos) < (height - prevPos)) {
-                                pos = prevPos - (minSpacing / scale(data.maximum));
-                            } else {
-                                pos = prevPos + (minSpacing / scale(data.maximum));
-                            }
-                        }
-                    }
-                    adjustedPositions.push(pos);
-                }
-            } else {
-                // For horizontal orientation
-                for (let i = 0; i < thresholds.length; i++) {
-                    let pos = thresholds[i].position;
+                    const distance = isVertical 
+                        ? Math.abs((height - thresholds[i].position) - (height - thresholds[j].position))
+                        : Math.abs(thresholds[j].position - thresholds[i].position);
                     
-                    // Check against previous labels
-                    for (let j = 0; j < i; j++) {
-                        const prevPos = adjustedPositions[j];
-                        const distance = Math.abs(pos - prevPos);
-                        
-                        if (distance < minSpacing) {
-                            // Offset this label to avoid overlap
-                            if (pos < prevPos) {
-                                pos = prevPos - minSpacing;
-                            } else {
-                                pos = prevPos + minSpacing;
-                            }
-                        }
+                    // If labels would overlap, hide the lower threshold
+                    if (distance < minSpacing) {
+                        thresholds[i].shouldRender = false;
+                        break; // Move to next threshold
                     }
-                    adjustedPositions.push(pos);
                 }
             }
             
             const thresholdLabelsGroup = this.container.append('g').classed('threshold-labels', true);
             
-            thresholds.forEach((threshold, index) => {
-                const pos = adjustedPositions[index];
+            thresholds.forEach((threshold) => {
+                const pos = threshold.position;
                 
                 if (isVertical) {
                     thresholdLabelsGroup.append('line')
@@ -748,7 +720,7 @@ export class Visual implements IVisual {
                         .attr('stroke-dasharray', lineDashArray);
 
                     // Vertical: labels on opposite side when left category labels are used
-                    if (threshold.showLabel) {
+                    if (threshold.showLabel && threshold.shouldRender) {
                         thresholdLabelsGroup.append('text')
                             .attr('x', thresholdOnRight ? width + 8 : -8)
                             .attr('y', height - pos + 4)
@@ -772,7 +744,7 @@ export class Visual implements IVisual {
                         .attr('stroke-dasharray', lineDashArray);
 
                     // Horizontal: labels above at threshold positions
-                    if (threshold.showLabel) {
+                    if (threshold.showLabel && threshold.shouldRender) {
                         thresholdLabelsGroup.append('text')
                             .attr('x', pos)
                             .attr('y', -8)
