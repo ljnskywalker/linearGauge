@@ -78,6 +78,9 @@
                 },
                 "gaugeWidth": { "type": { "numeric": true } },
                 "gaugePadding": { "type": { "numeric": true } },
+                "gaugeVerticalPadding": { "type": { "numeric": true } },
+                "maxGaugesPerRow": { "type": { "numeric": true } },
+                "maxGaugesPerColumn": { "type": { "numeric": true } },
                 "fillThicknessFactor": { "type": { "numeric": true } },
                 "useStaticValueColor": { "type": { "bool": true } },
                 "staticValueColor": { "type": { "fill": { "solid": { "color": true } } } }

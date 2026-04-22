@@ -345,11 +345,13 @@ export class Visual implements IVisual {
         if (gaugeCount === 0) return;
 
         const configuredPadding = this.formattingSettings.gaugeSettings.gaugePadding.value;
+        const configuredVerticalPadding = this.formattingSettings.gaugeSettings.gaugeVerticalPadding.value;
         const categoryPosition = this.formattingSettings.categoryLayout.categoryPosition.value.value as string;
         const categoryPadding = Math.max(2, Math.round(this.formattingSettings.categoryLayout.categoryPadding.value * compactFactor));
         const showCategoryLabel = this.formattingSettings.gaugeSettings.showCategoryLabel.value && !this.isSecondaryTextHidden();
         const isVertical = settings.orientation.value.value === 'vertical';
-        const padding = Math.round(configuredPadding * compactFactor);
+        const horizontalPadding = Math.round(configuredPadding * compactFactor);
+        const verticalPadding = Math.round(configuredVerticalPadding * compactFactor);
         const categoryFontSize = this.formattingSettings.categoryLayout.categoryFontSize.value;
 
         const maxCategoryLines = showCategoryLabel
@@ -380,26 +382,49 @@ export class Visual implements IVisual {
         const topMargin = Math.max(10, Math.round((topBaseMargin + maxTopTrendMargin) * compactFactor));
         const bottomMargin = maxBottomMargin;
 
-        // Calculate layout dimensions
+        // Calculate layout dimensions with grid support
         const gaugeWidth = gaugeBodyWidth;
-        const cols = gaugeCount;
-        const requiredWidth = cols * gaugeWidth + Math.max(0, cols - 1) * padding;
-        const horizontalScrollbarClearance = requiredWidth > (width + 1) ? 16 : 0;
+        const maxPerRow = this.formattingSettings.gaugeSettings.maxGaugesPerRow.value;
+        const maxPerColumn = this.formattingSettings.gaugeSettings.maxGaugesPerColumn.value;
+        
+        // Determine columns: if maxPerRow is set (>0), use it; otherwise all gauges in one row
+        let cols = (maxPerRow > 0) ? Math.min(maxPerRow, gaugeCount) : gaugeCount;
+        
+        // Calculate fixed gauge slot height (don't stretch with viewport)
         const minimumBodyHeight = 80;
         const minimumSlotHeight = minimumBodyHeight + topMargin + bottomMargin;
-        const gaugeHeightCalc = Math.max(minimumSlotHeight + horizontalScrollbarClearance, Math.max(1, height));
+        const gaugeSlotHeight = minimumSlotHeight;
+        
+        // Calculate how many rows can fit in the available viewport height
+        const availableRowsInViewport = maxPerColumn > 0 
+            ? maxPerColumn 
+            : Math.max(1, Math.floor((height + verticalPadding) / (gaugeSlotHeight + verticalPadding)));
+        
+        // Calculate total rows needed for all gauges
+        const totalRowsNeeded = Math.ceil(gaugeCount / cols);
+        
+        // Determine actual rows to render (minimum of what's needed and what fits)
+        const rows = Math.min(totalRowsNeeded, availableRowsInViewport);
+        
+        // Calculate how many gauges we can actually show in the grid
+        const maxVisibleGauges = rows * cols;
+        const visibleGaugeCount = Math.min(gaugeCount, maxVisibleGauges);
+        
+        const requiredWidth = cols * gaugeWidth + Math.max(0, cols - 1) * horizontalPadding;
+        const requiredHeight = rows * gaugeSlotHeight + Math.max(0, rows - 1) * verticalPadding;
+        const horizontalScrollbarClearance = requiredWidth > (width + 1) ? 16 : 0;
 
         // Start at viewport size; after rendering, resize to actual drawn bounds.
         this.svg
             .attr('width', Math.max(1, width))
             .attr('height', Math.max(1, height));
 
-        // Render each gauge
-        for (let i = 0; i < gaugeCount; i++) {
+        // Render each visible gauge
+        for (let i = 0; i < visibleGaugeCount; i++) {
             const row = Math.floor(i / cols);
             const col = i % cols;
-            const x = col * (gaugeWidth + padding);
-            const y = row * (gaugeHeightCalc + padding);
+            const x = col * (gaugeWidth + horizontalPadding);
+            const y = row * (gaugeSlotHeight + verticalPadding);
 
             const gaugeGroup = this.container.append('g')
                 .classed('gauge-item', true)
@@ -430,7 +455,7 @@ export class Visual implements IVisual {
 
             const originalContainer = this.container;
             this.container = gaugeGroup;
-            this.render(gaugeData, gaugeWidth, gaugeHeightCalc, maxCategoryLines, horizontalScrollbarClearance);
+            this.render(gaugeData, gaugeWidth, gaugeSlotHeight, maxCategoryLines, horizontalScrollbarClearance);
             this.container = originalContainer;
         }
 
@@ -441,7 +466,7 @@ export class Visual implements IVisual {
             const drawnWidth = Math.max(0, Math.ceil(bounds.x + bounds.width));
             const drawnHeight = Math.max(0, Math.ceil(bounds.y + bounds.height));
             const finalWidth = Math.max(width, drawnWidth || requiredWidth);
-            const finalHeight = Math.max(height, drawnHeight || gaugeHeightCalc);
+            const finalHeight = Math.max(height, drawnHeight || requiredHeight);
             const overflowEpsilon = 1;
             const hasHorizontalOverflow = finalWidth > (width + overflowEpsilon);
             const hasVerticalOverflow = finalHeight > (height + overflowEpsilon);
@@ -2093,6 +2118,9 @@ export class Visual implements IVisual {
                         layout: this.formattingSettings.gaugeSettings.layout.value,
                         gaugeWidth: this.formattingSettings.gaugeSettings.gaugeWidth.value,
                         gaugePadding: this.formattingSettings.gaugeSettings.gaugePadding.value,
+                        gaugeVerticalPadding: this.formattingSettings.gaugeSettings.gaugeVerticalPadding.value,
+                        maxGaugesPerRow: this.formattingSettings.gaugeSettings.maxGaugesPerRow.value,
+                        maxGaugesPerColumn: this.formattingSettings.gaugeSettings.maxGaugesPerColumn.value,
                         fillThicknessFactor: this.formattingSettings.gaugeSettings.fillThicknessFactor.value,
                         useStaticValueColor: this.formattingSettings.gaugeSettings.useStaticValueColor.value,
                         staticValueColor: this.formattingSettings.gaugeSettings.staticValueColor.value

@@ -77,7 +77,25 @@ class GaugeSettingsCard extends FormattingSettingsCard {
 
     gaugePadding = new formattingSettings.NumUpDown({
         name: "gaugePadding",
-        displayName: "Spacing Between Gauges (px)",
+        displayName: "Horizontal Spacing (px)",
+        value: 0
+    });
+
+    gaugeVerticalPadding = new formattingSettings.NumUpDown({
+        name: "gaugeVerticalPadding",
+        displayName: "Vertical Spacing Between Rows (px)",
+        value: 10
+    });
+
+    maxGaugesPerRow = new formattingSettings.NumUpDown({
+        name: "maxGaugesPerRow",
+        displayName: "Max Gauges Per Row",
+        value: 0
+    });
+
+    maxGaugesPerColumn = new formattingSettings.NumUpDown({
+        name: "maxGaugesPerColumn",
+        displayName: "Max Gauges Per Column",
         value: 0
     });
 
@@ -106,6 +124,9 @@ class GaugeSettingsCard extends FormattingSettingsCard {
         this.layout,
         this.gaugeWidth,
         this.gaugePadding,
+        this.gaugeVerticalPadding,
+        this.maxGaugesPerRow,
+        this.maxGaugesPerColumn,
         this.fillThicknessFactor,
         this.showCategoryLabel,
         this.useStaticValueColor,
@@ -120,6 +141,9 @@ class GaugeSettingsCard extends FormattingSettingsCard {
             this.layout,
             this.gaugeWidth,
             this.gaugePadding,
+            this.gaugeVerticalPadding,
+            this.maxGaugesPerRow,
+            this.maxGaugesPerColumn,
             this.fillThicknessFactor,
             this.showCategoryLabel,
             this.useStaticValueColor
