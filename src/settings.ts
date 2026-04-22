@@ -78,7 +78,7 @@ class GaugeSettingsCard extends FormattingSettingsCard {
     gaugePadding = new formattingSettings.NumUpDown({
         name: "gaugePadding",
         displayName: "Spacing Between Gauges (px)",
-        value: 10
+        value: 0
     });
 
     fillThicknessFactor = new formattingSettings.NumUpDown({

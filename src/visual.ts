@@ -349,7 +349,7 @@ export class Visual implements IVisual {
         const categoryPadding = Math.max(2, Math.round(this.formattingSettings.categoryLayout.categoryPadding.value * compactFactor));
         const showCategoryLabel = this.formattingSettings.gaugeSettings.showCategoryLabel.value && !this.isSecondaryTextHidden();
         const isVertical = settings.orientation.value.value === 'vertical';
-        const padding = Math.max(0, Math.round(configuredPadding * compactFactor));
+        const padding = Math.round(configuredPadding * compactFactor);
         const categoryFontSize = this.formattingSettings.categoryLayout.categoryFontSize.value;
 
         const maxCategoryLines = showCategoryLabel
